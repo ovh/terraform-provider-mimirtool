@@ -24,18 +24,18 @@ provider "mimirtool" {
 
 ### Required
 
-- `url` (String) Address to use when contacting Grafana Mimir. May alternatively be set via the `MIMIR_ADDRESS` environment variable.
+- `address` (String) Address to use when contacting Grafana Mimir. May alternatively be set via the `MIMIRTOOL_ADDRESS` or `MIMIR_ADDRESS` environment variable.
 
 ### Optional
 
-- `alertmanager_http_prefix` (String) Path prefix to use for alertmanager. May alternatively be set via the `MIMIR_ALERTMANAGER_HTTP_PREFIX` environment variable.
-- `ca_cert_path` (String) Certificate CA bundle to use to verify the MIMIR server's certificate. May alternatively be set via the `MIMIR_CA_CERT_PATH` environment variable.
-- `insecure_skip_verify` (Boolean) Skip TLS certificate verification. May alternatively be set via the `MIMIR_INSECURE_SKIP_VERIFY` environment variable.
-- `key` (String, Sensitive) API key to use when contacting Grafana Mimir. May alternatively be set via the `MIMIR_API_KEY` environment variable.
-- `prometheus_http_prefix` (String) Path prefix to use for rules. May alternatively be set via the `MIMIR_API_PREFIX` environment variable.
-- `store_rules_sha256` (Boolean) Set to true if you want to save only the sha256sum instead of namespace's groups rules definition in the tfstate.
-- `tenant_id` (String) Tenant ID to use when contacting Grafana Mimir. May alternatively be set via the `MIMIR_TENANT_ID` environment variable.
-- `tls_cert_path` (String) Client TLS certificate file to use to authenticate to the MIMIR server. May alternatively be set via the `MIMIR_TLS_CERT_PATH` environment variable.
-- `tls_key_path` (String) Client TLS key file to use to authenticate to the MIMIR server. May alternatively be set via the `MIMIR_TLS_KEY_PATH` environment variable.
-- `token` (String, Sensitive) Authentication token for bearer token or JWT auth when contacting Grafana Mimir. May alternatively be set via the `MIMIR_AUTH_TOKEN` environment variable.
-- `user` (String) API user to use when contacting Grafana Mimir. May alternatively be set via the `MIMIR_API_USER` environment variable.
+- `alertmanager_http_prefix` (String) Path prefix to use for alertmanager. May alternatively be set via the `MIMIRTOOL_ALERTMANAGER_HTTP_PREFIX` or `MIMIR_ALERTMANAGER_HTTP_PREFIX` environment variable.
+- `api_key` (String, Sensitive) API key to use when contacting Grafana Mimir. May alternatively be set via the `MIMIRTOOL_API_KEY` or `MIMIR_API_KEY` environment variable.
+- `api_user` (String) API user to use when contacting Grafana Mimir. May alternatively be set via the `MIMIRTOOL_API_USER` or `MIMIR_API_USER` environment variable.
+- `auth_token` (String, Sensitive) Authentication token for bearer token or JWT auth when contacting Grafana Mimir. May alternatively be set via the `MIMIRTOOL_AUTH_TOKEN` or `MIMIR_AUTH_TOKEN` environment variable.
+- `insecure_skip_verify` (Boolean) Skip TLS certificate verification. May alternatively be set via the `MIMIRTOOL_INSECURE_SKIP_VERIFY` or `MIMIR_INSECURE_SKIP_VERIFY` environment variable.
+- `prometheus_http_prefix` (String) Path prefix to use for rules. May alternatively be set via the `MIMIRTOOL_PROMETHEUS_HTTP_PREFIX` or `MIMIR_PROMETHEUS_HTTP_PREFIX` environment variable.
+- `store_rules_sha256` (Boolean) Set to true if you want to save only the sha256sum instead of namespace's groups rules definition in the tfstate. May alternatively be set via the `MIMIRTOOL_STORE_RULES_SHA256` or `MIMIR_STORE_RULES_SHA256` environment variable.
+- `tenant_id` (String) Tenant ID to use when contacting Grafana Mimir. May alternatively be set via the `MIMIRTOOL_TENANT_ID` or `MIMIR_TENANT_ID` environment variable.
+- `tls_ca_path` (String) Certificate CA bundle to use to verify the MIMIR server's certificate. May alternatively be set via the `MIMIRTOOL_TLS_CA_PATH` or `MIMIR_TLS_CA_PATH` environment variable.
+- `tls_cert_path` (String) Client TLS certificate file to use to authenticate to the MIMIR server. May alternatively be set via the `MIMIRTOOL_TLS_CERT_PATH` or `MIMIR_TLS_CERT_PATH` environment variable.
+- `tls_key_path` (String) Client TLS key file to use to authenticate to the MIMIR server. May alternatively be set via the `MIMIRTOOL_TLS_KEY_PATH` or `MIMIR_TLS_KEY_PATH` environment variable.
