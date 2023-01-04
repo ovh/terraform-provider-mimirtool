@@ -131,6 +131,23 @@ func TestAccResourceNamespaceCheckRules(t *testing.T) {
 
 }
 
+func TestAccResourceNamespaceParseRules(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mock := &MockMimirClientInterface{ctrl: ctrl}
+	mock.recorder = &MockMimirClientInterfaceMockRecorder{mock}
+	defer mock.ctrl.Finish()
+	resource.UnitTest(t, resource.TestCase{
+		PreCheck:          func() { testAccPreCheck(t) },
+		ProviderFactories: testAccProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccResourceNamespaceParseError,
+				ExpectError: regexp.MustCompile("field expression not found"),
+			},
+		},
+	})
+}
+
 const testAccResourceNamespace = `
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
@@ -166,5 +183,12 @@ const testAccResourceNamespaceFailsCheck = `
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-fails-check.yaml")
+  }
+`
+
+const testAccResourceNamespaceParseError = `
+resource "mimirtool_ruler_namespace" "demo" {
+	namespace = "demo"
+	config_yaml = file("testdata/rules-parse-error.yaml")
   }
 `
