@@ -1,0 +1,6 @@
+groups:
+- name: mimir_api_1
+  rules:
+  - expression: histogram_quantile(0.99, sum(rate(cortex_request_duration_seconds_bucket[1m]))
+      by (le, cluster, job))
+    record: cluster_job_cortex_request_duration_seconds_99quantile

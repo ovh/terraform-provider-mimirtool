@@ -62,7 +62,7 @@ func getRuleNamespaceFromYAML(ctx context.Context, configYAML string) (rules.Rul
 	// We pass only one ruleGroup while ParseBytes return an array, we only need the first element
 	ruleNamespaces, err := rules.ParseBytes([]byte(configYAML))
 	if err != nil {
-		return ruleNamespace, fmt.Errorf("failed to parse namespace definition")
+		return ruleNamespace, fmt.Errorf("failed to parse namespace definition:\n%s", err)
 	}
 
 	if len(ruleNamespaces) > 1 {
