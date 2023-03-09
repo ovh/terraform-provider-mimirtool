@@ -206,19 +206,14 @@ func rulerNamespaceDelete(ctx context.Context, d *schema.ResourceData, meta any)
 // Borrowed from https://github.com/grafana/terraform-provider-grafana/blob/master/grafana/resource_dashboard.go
 func normalizeNamespaceYAML(config any) string {
 	configYAML := config.(string)
-	// control on namespace definition is done by validateNamespaceYAML and we have no way to return the error.
-	ruleNamespace, _ := getRuleNamespaceFromYAML(context.Background(), configYAML)
-	// Mimir might return the groups and/or rules in a different order than the one in the definition.
-	// Let's sort them to make sure we can identify difference without false positive.
-	sort.Slice(ruleNamespace.Groups, func(i, j int) bool {
-		return ruleNamespace.Groups[i].Name < ruleNamespace.Groups[j].Name
-	})
-	for _, group := range ruleNamespace.Groups {
-		sort.Slice(group.Rules, func(i, j int) bool {
-			return group.Rules[i].Expr.Value < group.Rules[j].Expr.Value
-		})
+	var ruleNamespace rules.RuleNamespace
 
+	yaml.Unmarshal([]byte(configYAML), &ruleNamespace)
+
+	if !storeRulesSHA256 {
+		ruleNamespace.LintExpressions(rules.MimirBackend)
 	}
+
 	namespaceBytes, _ := yaml.Marshal(ruleNamespace.Groups)
 	if storeRulesSHA256 {
 		configHash := sha256.Sum256(namespaceBytes)
@@ -244,25 +239,36 @@ func validateNamespaceYAML(config any, k cty.Path) diag.Diagnostics {
 	return diags
 }
 
-func diffNamespaceYAML(k, oldValue, newValue string, d *schema.ResourceData) bool {
+func diffNamespaceYAML(_, oldValue, newValue string, _ *schema.ResourceData) bool {
 	var (
-		oldConfigYaml map[string][]rules.RuleNamespace
-		newConfigYaml map[string][]rules.RuleNamespace
-		err           error
+		oldConfig []rwrulefmt.RuleGroup
+		newConfig []rwrulefmt.RuleGroup
+		err       error
 	)
 
 	// If we cannot unmarshal, as we cannot return an error, let's say there is a difference
-	err = yaml.Unmarshal([]byte(newValue), &newConfigYaml)
+	err = yaml.Unmarshal([]byte(newValue), &newConfig)
 	if err != nil {
 		tflog.Warn(context.Background(), "Failed to unmarshal newConfigYaml")
 		tflog.Debug(context.Background(), err.Error())
 		return false
 	}
-	err = yaml.Unmarshal([]byte(oldValue), &oldConfigYaml)
+	err = yaml.Unmarshal([]byte(oldValue), &oldConfig)
 	if err != nil {
 		tflog.Warn(context.Background(), "Failed to unmarshal oldValue")
 		tflog.Debug(context.Background(), err.Error())
 		return false
 	}
-	return reflect.DeepEqual(oldConfigYaml["groups"], newConfigYaml["groups"])
+
+	return rules.CompareNamespaces(
+		rules.RuleNamespace{
+			Namespace: "old",
+			Filepath:  "",
+			Groups:    oldConfig,
+		},
+		rules.RuleNamespace{
+			Namespace: "new",
+			Filepath:  "",
+			Groups:    newConfig,
+		}).State == rules.Unchanged
 }

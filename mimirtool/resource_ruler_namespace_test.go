@@ -81,8 +81,8 @@ func TestAccResourceNamespace(t *testing.T) {
 		expectedInitialConfig := testAccResourceNamespaceYaml
 		expectedInitialConfigAfterUpdate := testAccResourceNamespaceYamlAfterUpdate
 		if useSHA256 {
-			expectedInitialConfig = "8ee2cdb65b41d7bdc875ebec6cb1f7a9ab0813e9f6166105a7953d7bf9a68d9b"
-			expectedInitialConfigAfterUpdate = "372a400b1eae63b184c036dd2c0aaf71c57e3d8125621e371389d4f7c40c1cb6"
+			expectedInitialConfig = "1f42376cda18887c0611a56aa432f8897dac5a3e9a94b839486aa1c8a0c94375"
+			expectedInitialConfigAfterUpdate = "5eb3566fb3eabf583b2301c63b3629ee4003a7443360a8015bd15da3cd17cad6"
 		}
 		mockClient = initMockNamespace(t)
 		defer mockClient.ctrl.Finish()
@@ -113,6 +113,27 @@ func TestAccResourceNamespace(t *testing.T) {
 	}
 }
 
+func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
+	mockClient = initMockNamespace(t)
+	defer mockClient.ctrl.Finish()
+	resource.UnitTest(t, resource.TestCase{
+		PreCheck:          func() { testAccPreCheck(t) },
+		ProviderFactories: testAccProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccResourceNamespaceWhitespaceDiff,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "namespace", "demo"),
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "config_yaml", testAccResourceNamespaceYaml),
+				),
+			},
+		},
+	})
+
+}
+
 func TestAccResourceNamespaceCheckRules(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mock := &MockMimirClientInterface{ctrl: ctrl}
@@ -128,7 +149,6 @@ func TestAccResourceNamespaceCheckRules(t *testing.T) {
 			},
 		},
 	})
-
 }
 
 func TestAccResourceNamespaceParseRules(t *testing.T) {
@@ -156,10 +176,10 @@ resource "mimirtool_ruler_namespace" "demo" {
 `
 const testAccResourceNamespaceYaml = `- name: mimir_api_1
   rules:
-    - record: cluster_job:cortex_request_duration_seconds:50quantile
-      expr: histogram_quantile(0.50, sum(rate(cortex_request_duration_seconds_bucket[1m])) by (le, cluster, job))
     - record: cluster_job:cortex_request_duration_seconds:99quantile
-      expr: histogram_quantile(0.99, sum(rate(cortex_request_duration_seconds_bucket[1m])) by (le, cluster, job))
+      expr: histogram_quantile(0.99, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
+    - record: cluster_job:cortex_request_duration_seconds:50quantile
+      expr: histogram_quantile(0.5, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
 `
 
 const testAccResourceNamespaceAfterUpdate = `
@@ -170,14 +190,20 @@ resource "mimirtool_ruler_namespace" "demo" {
 `
 const testAccResourceNamespaceYamlAfterUpdate = `- name: mimir_api_1
   rules:
-    - record: cluster_job:cortex_request_duration_seconds:50quantile
-      expr: histogram_quantile(0.50, sum(rate(cortex_request_duration_seconds_bucket[1m])) by (le, cluster, job))
     - record: cluster_job:cortex_request_duration_seconds:99quantile
-      expr: histogram_quantile(0.99, sum(rate(cortex_request_duration_seconds_bucket[1m])) by (le, cluster, job))
+      expr: histogram_quantile(0.99, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
+    - record: cluster_job:cortex_request_duration_seconds:50quantile
+      expr: histogram_quantile(0.5, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
 - name: mimir_api_2
   rules:
     - record: cluster_job_route:cortex_request_duration_seconds:99quantile
-      expr: histogram_quantile(0.99, sum(rate(cortex_request_duration_seconds_bucket[1m])) by (le, cluster, job, route))
+      expr: histogram_quantile(0.99, sum by (le, cluster, job, route) (rate(cortex_request_duration_seconds_bucket[1m])))
+`
+const testAccResourceNamespaceWhitespaceDiff = `
+resource "mimirtool_ruler_namespace" "demo" {
+	namespace = "demo"
+	config_yaml = file("testdata/rules2_spacing.yaml")
+  }
 `
 const testAccResourceNamespaceFailsCheck = `
 resource "mimirtool_ruler_namespace" "demo" {
