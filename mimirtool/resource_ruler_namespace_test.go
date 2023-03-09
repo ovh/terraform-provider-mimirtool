@@ -17,8 +17,8 @@ func TestAccResourceNamespace(t *testing.T) {
 		expectedInitialConfig := testAccResourceNamespaceYaml
 		expectedInitialConfigAfterUpdate := testAccResourceNamespaceYamlAfterUpdate
 		if useSHA256 {
-			expectedInitialConfig = "8ee2cdb65b41d7bdc875ebec6cb1f7a9ab0813e9f6166105a7953d7bf9a68d9b"
-			expectedInitialConfigAfterUpdate = "372a400b1eae63b184c036dd2c0aaf71c57e3d8125621e371389d4f7c40c1cb6"
+			expectedInitialConfig = "a90a22389a8e736469aa2c70145ca4d3481c5f6565423fef484f140541eec113"
+			expectedInitialConfigAfterUpdate = "fce4306cdc615aeb3c04385ff7b565cbbe77453758894f898e4651576510f883"
 		}
 		resource.UnitTest(t, resource.TestCase{
 			PreCheck:          func() { testAccPreCheck(t) },
@@ -47,6 +47,36 @@ func TestAccResourceNamespace(t *testing.T) {
 	}
 }
 
+func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
+	for _, useSHA256 := range []bool{false, true} {
+		os.Setenv("MIMIR_STORE_RULES_SHA256", fmt.Sprintf("%t", useSHA256))
+		defer os.Unsetenv("MIMIR_STORE_RULES_SHA256")
+
+		var expected string
+		if !useSHA256 {
+			expected = testAccResourceNamespaceYamlWhitespace
+		} else {
+			expected = "f9a92a1e50895f6c0e626a2c8b0a8c4f6c1211e9d1089e73163b08c366a8dfc4"
+		}
+
+		resource.UnitTest(t, resource.TestCase{
+			PreCheck:          func() { testAccPreCheck(t) },
+			ProviderFactories: testAccProviderFactories,
+			Steps: []resource.TestStep{
+				{
+					Config: testAccResourceNamespaceWhitespaceDiff,
+					Check: resource.ComposeTestCheckFunc(
+						resource.TestCheckResourceAttr(
+							"mimirtool_ruler_namespace.demo", "namespace", "demo"),
+						resource.TestCheckResourceAttr(
+							"mimirtool_ruler_namespace.demo", "config_yaml", expected),
+					),
+				},
+			},
+		})
+	}
+}
+
 func TestAccResourceNamespaceCheckRules(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
@@ -58,7 +88,6 @@ func TestAccResourceNamespaceCheckRules(t *testing.T) {
 			},
 		},
 	})
-
 }
 
 func TestAccResourceNamespaceParseRules(t *testing.T) {
@@ -82,12 +111,19 @@ resource "mimirtool_ruler_namespace" "demo" {
 `
 const testAccResourceNamespaceYaml = `- name: mimir_api_1
   rules:
-    - record: cluster_job:cortex_request_duration_seconds:50quantile
-      expr: histogram_quantile(0.50, sum(rate(cortex_request_duration_seconds_bucket[1m])) by (le, cluster, job))
     - record: cluster_job:cortex_request_duration_seconds:99quantile
-      expr: histogram_quantile(0.99, sum(rate(cortex_request_duration_seconds_bucket[1m])) by (le, cluster, job))
+      expr: histogram_quantile(0.99, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
+    - record: cluster_job:cortex_request_duration_seconds:50quantile
+      expr: histogram_quantile(0.5, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
 `
-
+const testAccResourceNamespaceYamlWhitespace = `- name: mimir_api_1
+  rules:
+    - record: cluster_job:cortex_request_duration_seconds:99quantile
+      expr: |-
+        histogram_quantile(0.99, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
+    - record: cluster_job:cortex_request_duration_seconds:50quantile
+      expr: histogram_quantile(0.5, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
+`
 const testAccResourceNamespaceAfterUpdate = `
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
@@ -96,14 +132,20 @@ resource "mimirtool_ruler_namespace" "demo" {
 `
 const testAccResourceNamespaceYamlAfterUpdate = `- name: mimir_api_1
   rules:
-    - record: cluster_job:cortex_request_duration_seconds:50quantile
-      expr: histogram_quantile(0.50, sum(rate(cortex_request_duration_seconds_bucket[1m])) by (le, cluster, job))
     - record: cluster_job:cortex_request_duration_seconds:99quantile
-      expr: histogram_quantile(0.99, sum(rate(cortex_request_duration_seconds_bucket[1m])) by (le, cluster, job))
+      expr: histogram_quantile(0.99, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
+    - record: cluster_job:cortex_request_duration_seconds:50quantile
+      expr: histogram_quantile(0.5, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
 - name: mimir_api_2
   rules:
     - record: cluster_job_route:cortex_request_duration_seconds:99quantile
-      expr: histogram_quantile(0.99, sum(rate(cortex_request_duration_seconds_bucket[1m])) by (le, cluster, job, route))
+      expr: histogram_quantile(0.99, sum by (le, cluster, job, route) (rate(cortex_request_duration_seconds_bucket[1m])))
+`
+const testAccResourceNamespaceWhitespaceDiff = `
+resource "mimirtool_ruler_namespace" "demo" {
+	namespace = "demo"
+	config_yaml = file("testdata/rules2_spacing.yaml")
+  }
 `
 const testAccResourceNamespaceFailsCheck = `
 resource "mimirtool_ruler_namespace" "demo" {
