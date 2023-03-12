@@ -19,11 +19,6 @@ func getSetEnv(key, fallback string) string {
 	return value
 }
 
-var (
-	mimirAddress = getSetEnv("MIMIR_ADDRESS", "http://localhost:8080")
-	mockClient   *MockMimirClientInterface
-)
-
 // testAccProviderFactories is a static map containing only the main provider instance
 var testAccProviderFactories map[string]func() (*schema.Provider, error)
 
@@ -46,22 +41,22 @@ var testAccProviders map[string]*schema.Provider
 var testAccProviderConfigure sync.Once
 
 func init() {
-	testAccProvider = New("dev", mockClient)()
+	testAccProvider = New("dev")()
 	testAccProviders = map[string]*schema.Provider{
-		"mimirtool": New("dev", mockClient)(),
+		"mimirtool": New("dev")(),
 	}
 
 	// Always allocate a new provider instance each invocation, otherwise gRPC
 	// ProviderConfigure() can overwrite configuration during concurrent testing.
 	testAccProviderFactories = map[string]func() (*schema.Provider, error){
 		"mimirtool": func() (*schema.Provider, error) {
-			return New("dev", mockClient)(), nil
+			return New("dev")(), nil
 		},
 	}
 }
 
 func TestProvider(t *testing.T) {
-	if err := New("dev", mockClient)().InternalValidate(); err != nil {
+	if err := New("dev")().InternalValidate(); err != nil {
 		t.Fatalf("err: %s", err)
 	}
 }

@@ -32,7 +32,7 @@ func init() {
 }
 
 // New returns a newly created provider
-func New(version string, mimirClient mimirClientInterface) func() *schema.Provider {
+func New(version string) func() *schema.Provider {
 	return func() *schema.Provider {
 		p := &schema.Provider{
 			Schema: map[string]*schema.Schema{
@@ -122,13 +122,13 @@ func New(version string, mimirClient mimirClientInterface) func() *schema.Provid
 			},
 		}
 
-		p.ConfigureContextFunc = configure(version, p, mimirClient)
+		p.ConfigureContextFunc = configure(version, p)
 
 		return p
 	}
 }
 
-func configure(version string, p *schema.Provider, mimirClient mimirClientInterface) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
+func configure(version string, p *schema.Provider) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
 	return func(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
 		var (
 			diags diag.Diagnostics
@@ -137,13 +137,10 @@ func configure(version string, p *schema.Provider, mimirClient mimirClientInterf
 		p.UserAgent("terraform-provider-mimirtool", version)
 
 		c := &client{}
-		if mimirClient != nil {
-			c.cli = mimirClient
-		} else {
-			c.cli, err = getDefaultMimirClient(d)
-			if err != nil {
-				return nil, diag.FromErr(err)
-			}
+
+		c.cli, err = getDefaultMimirClient(d)
+		if err != nil {
+			return nil, diag.FromErr(err)
 		}
 
 		storeRulesSHA256 = d.Get("store_rules_sha256").(bool)

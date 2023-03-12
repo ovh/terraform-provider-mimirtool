@@ -1,6 +1,3 @@
-# This GitHub action runs your tests for each commit push and/or PR. Optionally
-# you can turn it on using a cron schedule for regular testing.
-#
 name: Tests
 on:
   pull_request:
@@ -9,14 +6,7 @@ on:
   push:
     paths-ignore:
       - 'README.md'
-  # For systems with an upstream API that could drift unexpectedly (like most SaaS systems, etc.),
-  # we recommend testing at a regular interval not necessarily tied to code changes. This will
-  # ensure you are alerted to something breaking due to an API change, even if the code did not
-  # change.
-  # schedule:
-  #   - cron: '0 13 * * *'
 jobs:
-  # ensure the code builds...
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -65,10 +55,20 @@ jobs:
       fail-fast: false
       matrix:
         # list whatever Terraform versions here you would like to support
+        # As a best practice, HashiCorp expects customers to stay current
+        # within two (2) releases from the latest major release in order to
+        # receive optimal support. Release updates for Customers are provided
+        # regularly on HashiCorp product pages for each HashiCorp product.
+        # See: https://support.hashicorp.com/hc/en-us/articles/360021185113
         terraform:
-          - '1.1.*'
-          - '1.2.*'
           - '1.3.*'
+          - '1.4.*'
+        # We will support the 3 last minor versions as Grafana honor 2 versions
+        # before dropping a deprecated flag
+        mimir:
+          - '2.5.0'
+          - '2.6.0'
+
     steps:
 
     - name: Check out code into the Go module directory
@@ -90,15 +90,13 @@ jobs:
       run: |
         go mod download
 
+    # Not using `services` as they do not allow us to configure mimir and we
+    # don't want to build/maintain our own image just for that.
+    # The makefile will take care of spawning a mimir instance.
     - name: TF acceptance tests
       timeout-minutes: 10
       env:
         TF_ACC: "1"
-
-        # Set whatever additional acceptance test env vars here. You can
-        # optionally use data from your repository secrets using the
-        # following syntax:
-        # SOME_VAR: ${{ secrets.SOME_VAR }}
-
+        MIMIRTOOL_ADDRESS: "http://localhost:8080"
       run: |
-        go test -v -cover ./mimirtool
+        MIMIR_VERSION=${{ matrix.mimir }} make testacc

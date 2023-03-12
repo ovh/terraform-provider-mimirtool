@@ -3,27 +3,10 @@ package mimirtool
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 )
 
-func initMockAlertmanager(t *testing.T) *MockMimirClientInterface {
-	ctrl := gomock.NewController(t)
-	mock := &MockMimirClientInterface{ctrl: ctrl}
-	mock.recorder = &MockMimirClientInterfaceMockRecorder{mock}
-
-	mock.EXPECT().CreateAlertmanagerConfig(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
-	mock.EXPECT().DeleteAlermanagerConfig(gomock.Any()).AnyTimes().Return(nil)
-	osef := map[string]string{
-		"default_template": testAccResourceAlertmanagerTemplate,
-	}
-	mock.EXPECT().GetAlertmanagerConfig(gomock.Any()).AnyTimes().Return(testAccResourceAlertmanagerYaml, osef, nil)
-	return mock
-}
-
 func TestAccResourceAlertmanager(t *testing.T) {
-	mockClient = initMockAlertmanager(t)
-	defer mockClient.ctrl.Finish()
 	resource.UnitTest(t, resource.TestCase{
 		PreCheck:          func() { testAccPreCheck(t) },
 		ProviderFactories: testAccProviderFactories,
