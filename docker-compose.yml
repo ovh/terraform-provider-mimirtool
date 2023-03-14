@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+
+  mimir:
+    image: grafana/mimir:${MIMIR_VERSION}
+    # We don't want to conflict with possible other container
+    container_name: mimirtool-mimir-service
+    ports:
+      - 8080:8080
+    volumes:
+      - ./config.yaml:/etc/mimir/config.yaml
+    command:
+      - --config.file=/etc/mimir/config.yaml
+    healthcheck:
+      test: ["CMD", "wget", "-O-", "http://localhost:8080/ready"]
+      timeout: 45s
+      interval: 30s
+      start_period: 40s
+      retries: 3

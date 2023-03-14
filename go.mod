@@ -3,7 +3,6 @@ module github.com/ovh/terraform-provider-mimirtool
 go 1.19
 
 require (
-	github.com/golang/mock v1.6.0
 	github.com/grafana/mimir v0.0.0-20230202150046-27698f399fc9
 	github.com/hashicorp/terraform-plugin-docs v0.14.1
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.25.0
@@ -81,7 +80,7 @@ require (
 	github.com/prometheus/common v0.39.1-0.20230202092144-f9c1994be032 // indirect
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
-	github.com/prometheus/prometheus v1.8.2-0.20220620125440-d7e7b8e04b5e
+	github.com/prometheus/prometheus v1.8.2-0.20220620125440-d7e7b8e04b5e // indirect
 	github.com/russross/blackfriday v1.6.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect

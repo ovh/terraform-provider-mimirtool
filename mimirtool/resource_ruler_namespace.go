@@ -209,10 +209,7 @@ func normalizeNamespaceYAML(config any) string {
 	var ruleNamespace rules.RuleNamespace
 
 	yaml.Unmarshal([]byte(configYAML), &ruleNamespace)
-
-	if !storeRulesSHA256 {
-		ruleNamespace.LintExpressions(rules.MimirBackend)
-	}
+	ruleNamespace.LintExpressions(rules.MimirBackend)
 
 	namespaceBytes, _ := yaml.Marshal(ruleNamespace.Groups)
 	if storeRulesSHA256 {

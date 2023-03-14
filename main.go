@@ -35,7 +35,7 @@ func main() {
 	opts := &plugin.ServeOpts{
 		Debug:        debugMode,
 		ProviderAddr: "registry.terraform.io/ovh/mimirtool",
-		ProviderFunc: mimirtool.New(version, nil),
+		ProviderFunc: mimirtool.New(version),
 	}
 
 	plugin.Serve(opts)
