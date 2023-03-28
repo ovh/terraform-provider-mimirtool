@@ -34,7 +34,6 @@ provider "mimirtool" {
 - `auth_token` (String, Sensitive) Authentication token for bearer token or JWT auth when contacting Grafana Mimir. May alternatively be set via the `MIMIRTOOL_AUTH_TOKEN` or `MIMIR_AUTH_TOKEN` environment variable.
 - `insecure_skip_verify` (Boolean) Skip TLS certificate verification. May alternatively be set via the `MIMIRTOOL_INSECURE_SKIP_VERIFY` or `MIMIR_INSECURE_SKIP_VERIFY` environment variable.
 - `prometheus_http_prefix` (String) Path prefix to use for rules. May alternatively be set via the `MIMIRTOOL_PROMETHEUS_HTTP_PREFIX` or `MIMIR_PROMETHEUS_HTTP_PREFIX` environment variable.
-- `store_rules_sha256` (Boolean) Set to true if you want to save only the sha256sum instead of namespace's groups rules definition in the tfstate. May alternatively be set via the `MIMIRTOOL_STORE_RULES_SHA256` or `MIMIR_STORE_RULES_SHA256` environment variable.
 - `tenant_id` (String) Tenant ID to use when contacting Grafana Mimir. May alternatively be set via the `MIMIRTOOL_TENANT_ID` or `MIMIR_TENANT_ID` environment variable.
 - `tls_ca_path` (String) Certificate CA bundle to use to verify the MIMIR server's certificate. May alternatively be set via the `MIMIRTOOL_TLS_CA_PATH` or `MIMIR_TLS_CA_PATH` environment variable.
 - `tls_cert_path` (String) Client TLS certificate file to use to authenticate to the MIMIR server. May alternatively be set via the `MIMIRTOOL_TLS_CERT_PATH` or `MIMIR_TLS_CERT_PATH` environment variable.

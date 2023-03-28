@@ -2,7 +2,6 @@ package mimirtool
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 
 	"github.com/grafana/mimir/pkg/mimirtool/rules"
@@ -212,10 +211,6 @@ func normalizeNamespaceYAML(config any) string {
 	ruleNamespace.LintExpressions(rules.MimirBackend)
 
 	namespaceBytes, _ := yaml.Marshal(ruleNamespace.Groups)
-	if storeRulesSHA256 {
-		configHash := sha256.Sum256(namespaceBytes)
-		return fmt.Sprintf("%x", configHash[:])
-	}
 	return string(namespaceBytes)
 }
 

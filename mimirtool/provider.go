@@ -11,10 +11,6 @@ import (
 	mimirtool "github.com/grafana/mimir/pkg/mimirtool/client"
 )
 
-var (
-	storeRulesSHA256 bool
-)
-
 func init() {
 	// Set descriptions to support markdown syntax, this will be used in document generation
 	// and the language server.
@@ -108,12 +104,6 @@ func New(version string) func() *schema.Provider {
 					DefaultFunc: schema.MultiEnvDefaultFunc([]string{"MIMIRTOOL_ALERTMANAGER_HTTP_PREFIX", "MIMIR_ALERTMANAGER_HTTP_PREFIX"}, "/alertmanager"),
 					Description: "Path prefix to use for alertmanager. May alternatively be set via the `MIMIRTOOL_ALERTMANAGER_HTTP_PREFIX` or `MIMIR_ALERTMANAGER_HTTP_PREFIX` environment variable.",
 				},
-				"store_rules_sha256": {
-					Type:        schema.TypeBool,
-					Optional:    true,
-					DefaultFunc: schema.MultiEnvDefaultFunc([]string{"MIMIRTOOL_STORE_RULES_SHA256", "MIMIR_STORE_RULES_SHA256"}, false),
-					Description: "Set to true if you want to save only the sha256sum instead of namespace's groups rules definition in the tfstate. May alternatively be set via the `MIMIRTOOL_STORE_RULES_SHA256` or `MIMIR_STORE_RULES_SHA256` environment variable.",
-				},
 			},
 			DataSourcesMap: map[string]*schema.Resource{},
 			ResourcesMap: map[string]*schema.Resource{
@@ -142,8 +132,6 @@ func configure(version string, p *schema.Provider) func(context.Context, *schema
 		if err != nil {
 			return nil, diag.FromErr(err)
 		}
-
-		storeRulesSHA256 = d.Get("store_rules_sha256").(bool)
 		return c, diags
 	}
 }
