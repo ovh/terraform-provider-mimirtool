@@ -1,8 +1,6 @@
 package mimirtool
 
 import (
-	"fmt"
-	"os"
 	"regexp"
 	"testing"
 
@@ -10,71 +8,67 @@ import (
 )
 
 func TestAccResourceNamespace(t *testing.T) {
-	for _, useSHA256 := range []bool{false, true} {
-		os.Setenv("MIMIR_STORE_RULES_SHA256", fmt.Sprintf("%t", useSHA256))
-		defer os.Unsetenv("MIMIR_STORE_RULES_SHA256")
-
-		expectedInitialConfig := testAccResourceNamespaceYaml
-		expectedInitialConfigAfterUpdate := testAccResourceNamespaceYamlAfterUpdate
-		if useSHA256 {
-			expectedInitialConfig = "a90a22389a8e736469aa2c70145ca4d3481c5f6565423fef484f140541eec113"
-			expectedInitialConfigAfterUpdate = "fce4306cdc615aeb3c04385ff7b565cbbe77453758894f898e4651576510f883"
-		}
-		resource.UnitTest(t, resource.TestCase{
-			PreCheck:          func() { testAccPreCheck(t) },
-			ProviderFactories: testAccProviderFactories,
-			Steps: []resource.TestStep{
-				{
-					Config: testAccResourceNamespace,
-					Check: resource.ComposeTestCheckFunc(
-						resource.TestCheckResourceAttr(
-							"mimirtool_ruler_namespace.demo", "namespace", "demo"),
-						resource.TestCheckResourceAttr(
-							"mimirtool_ruler_namespace.demo", "config_yaml", expectedInitialConfig),
-					),
-				},
-				{
-					Config: testAccResourceNamespaceAfterUpdate,
-					Check: resource.ComposeTestCheckFunc(
-						resource.TestCheckResourceAttr(
-							"mimirtool_ruler_namespace.demo", "namespace", "demo"),
-						resource.TestCheckResourceAttr(
-							"mimirtool_ruler_namespace.demo", "config_yaml", expectedInitialConfigAfterUpdate),
-					),
-				},
+	resource.UnitTest(t, resource.TestCase{
+		PreCheck:          func() { testAccPreCheck(t) },
+		ProviderFactories: testAccProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccResourceNamespace,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "namespace", "demo"),
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "config_yaml", testAccResourceNamespaceYaml),
+				),
 			},
-		})
-	}
+			{
+				Config: testAccResourceNamespaceAfterUpdate,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "namespace", "demo"),
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "config_yaml", testAccResourceNamespaceYamlAfterUpdate),
+				),
+			},
+		},
+	})
 }
 
 func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
-	for _, useSHA256 := range []bool{false, true} {
-		os.Setenv("MIMIR_STORE_RULES_SHA256", fmt.Sprintf("%t", useSHA256))
-		defer os.Unsetenv("MIMIR_STORE_RULES_SHA256")
 
-		var expected string
-		if !useSHA256 {
-			expected = testAccResourceNamespaceYamlWhitespace
-		} else {
-			expected = "f9a92a1e50895f6c0e626a2c8b0a8c4f6c1211e9d1089e73163b08c366a8dfc4"
-		}
-
-		resource.UnitTest(t, resource.TestCase{
-			PreCheck:          func() { testAccPreCheck(t) },
-			ProviderFactories: testAccProviderFactories,
-			Steps: []resource.TestStep{
-				{
-					Config: testAccResourceNamespaceWhitespaceDiff,
-					Check: resource.ComposeTestCheckFunc(
-						resource.TestCheckResourceAttr(
-							"mimirtool_ruler_namespace.demo", "namespace", "demo"),
-						resource.TestCheckResourceAttr(
-							"mimirtool_ruler_namespace.demo", "config_yaml", expected),
-					),
-				},
+	resource.UnitTest(t, resource.TestCase{
+		PreCheck:          func() { testAccPreCheck(t) },
+		ProviderFactories: testAccProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccResourceNamespaceWhitespaceDiff,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "namespace", "demo"),
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "config_yaml", testAccResourceNamespaceYamlWhitespace),
+				),
 			},
-		})
-	}
+		},
+	})
+}
+
+func TestAccResourceNamespaceQuoting(t *testing.T) {
+	resource.UnitTest(t, resource.TestCase{
+		PreCheck:          func() { testAccPreCheck(t) },
+		ProviderFactories: testAccProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccResourceNamespaceQuoting,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "namespace", "demo"),
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "config_yaml", testAccResourceNamespaceQuotingExpected),
+				),
+			},
+		},
+	})
 }
 
 func TestAccResourceNamespaceCheckRules(t *testing.T) {
@@ -159,4 +153,34 @@ resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-parse-error.yaml")
   }
+`
+const testAccResourceNamespaceQuoting = `
+resource "mimirtool_ruler_namespace" "demo" {
+	namespace = "demo"
+	config_yaml = file("testdata/rules-quoting.yaml")
+  }
+`
+const testAccResourceNamespaceQuotingExpected = `- name: NodeExporter
+  rules:
+    - alert: HostDiskWillFillIn24Hours
+      expr: (node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and on (instance, device, mountpoint) predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs"}[1h], 24 * 3600) < 0 and on (instance, device, mountpoint) node_filesystem_readonly == 0
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        description: |-
+            Filesystem is predicted to run out of space within the next 24 hours at current write rate
+              VALUE = {{ $value }}
+              LABELS = {{ $labels }}
+        summary: Host disk will fill in 24 hours (instance {{ $labels.instance }})
+    - alert: HostHighCpuLoad
+      expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 80
+      labels:
+        severity: warning
+      annotations:
+        description: |-
+            CPU load is > 80%
+              VALUE = {{ $value }}
+              LABELS = {{ $labels }}
+        summary: Host high CPU load (instance {{ $labels.instance }})
 `

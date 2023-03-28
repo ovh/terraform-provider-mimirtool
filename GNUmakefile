@@ -3,7 +3,7 @@ MIMIR_VERSION ?= 2.6.0
 default: testacc
 
 # Run acceptance tests
-.PHONY: testacc
+.PHONY: testacc docs
 testacc: compose-up
 	TF_ACC=1 MIMIRTOOL_ADDRESS=http://localhost:8080 go test ./... -v $(TESTARGS) -timeout 120m
 

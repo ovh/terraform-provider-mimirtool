@@ -1,0 +1,25 @@
+namespace: rules-quoting
+groups:
+    - name: NodeExporter
+      rules:
+        - alert: HostDiskWillFillIn24Hours
+          expr: '(node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and ON (instance, device, mountpoint) predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs"}[1h], 24 * 3600) < 0 and on (instance, device, mountpoint) node_filesystem_readonly == 0'
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            description: |-
+                Filesystem is predicted to run out of space within the next 24 hours at current write rate
+                  VALUE = {{ $value }}
+                  LABELS = {{ $labels }}
+            summary: Host disk will fill in 24 hours (instance {{ $labels.instance }})
+        - alert: HostHighCpuLoad
+          expr: '100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 80'
+          labels:
+            severity: warning
+          annotations:
+            description: |-
+                CPU load is > 80%
+                  VALUE = {{ $value }}
+                  LABELS = {{ $labels }}
+            summary: Host high CPU load (instance {{ $labels.instance }})

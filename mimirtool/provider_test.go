@@ -2,22 +2,12 @@ package mimirtool
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
-
-func getSetEnv(key, fallback string) string {
-	value, exists := os.LookupEnv(key)
-	if !exists {
-		value = fallback
-		os.Setenv(key, fallback)
-	}
-	return value
-}
 
 // testAccProviderFactories is a static map containing only the main provider instance
 var testAccProviderFactories map[string]func() (*schema.Provider, error)
