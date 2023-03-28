@@ -53,6 +53,19 @@ func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
 	})
 }
 
+func TestAccResourceNamespaceQuoting(t *testing.T) {
+	resource.UnitTest(t, resource.TestCase{
+		PreCheck:          func() { testAccPreCheck(t) },
+		ProviderFactories: testAccProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccResourceNamespaceQuoting,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "namespace", "demo"),
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "config_yaml", testAccResourceNamespaceQuotingExpected),
+				),
 			},
 		},
 	})
@@ -140,4 +153,34 @@ resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-parse-error.yaml")
   }
+`
+const testAccResourceNamespaceQuoting = `
+resource "mimirtool_ruler_namespace" "demo" {
+	namespace = "demo"
+	config_yaml = file("testdata/rules-quoting.yaml")
+  }
+`
+const testAccResourceNamespaceQuotingExpected = `- name: NodeExporter
+  rules:
+    - alert: HostDiskWillFillIn24Hours
+      expr: (node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and on (instance, device, mountpoint) predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs"}[1h], 24 * 3600) < 0 and on (instance, device, mountpoint) node_filesystem_readonly == 0
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        description: |-
+            Filesystem is predicted to run out of space within the next 24 hours at current write rate
+              VALUE = {{ $value }}
+              LABELS = {{ $labels }}
+        summary: Host disk will fill in 24 hours (instance {{ $labels.instance }})
+    - alert: HostHighCpuLoad
+      expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 80
+      labels:
+        severity: warning
+      annotations:
+        description: |-
+            CPU load is > 80%
+              VALUE = {{ $value }}
+              LABELS = {{ $labels }}
+        summary: Host high CPU load (instance {{ $labels.instance }})
 `
