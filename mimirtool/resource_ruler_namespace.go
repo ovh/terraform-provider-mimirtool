@@ -3,11 +3,11 @@ package mimirtool
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/grafana/mimir/pkg/mimirtool/rules"
 	"github.com/grafana/mimir/pkg/mimirtool/rules/rwrulefmt"
 	"github.com/hashicorp/go-cty/cty"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"golang.org/x/exp/slices"
@@ -210,7 +210,7 @@ func normalizeNamespaceYAML(config any) string {
 	yaml.Unmarshal([]byte(configYAML), &ruleNamespace)
 	ruleNamespace.LintExpressions(rules.MimirBackend)
 
-	namespaceBytes, _ := yaml.Marshal(ruleNamespace.Groups)
+	namespaceBytes, _ := yaml.Marshal(ruleNamespace)
 	return string(namespaceBytes)
 }
 
@@ -233,34 +233,27 @@ func validateNamespaceYAML(config any, k cty.Path) diag.Diagnostics {
 
 func diffNamespaceYAML(_, oldValue, newValue string, _ *schema.ResourceData) bool {
 	var (
-		oldConfig []rwrulefmt.RuleGroup
-		newConfig []rwrulefmt.RuleGroup
+		oldConfig rules.RuleNamespace
+		newConfig rules.RuleNamespace
 		err       error
 	)
 
 	// If we cannot unmarshal, as we cannot return an error, let's say there is a difference
 	err = yaml.Unmarshal([]byte(newValue), &newConfig)
 	if err != nil {
-		tflog.Warn(context.Background(), "Failed to unmarshal newConfigYaml")
-		tflog.Debug(context.Background(), err.Error())
+		log.Printf("[ERROR] new ConfigYAML: %s", newValue)
+		log.Printf("[ERROR] failed to unmarshal new ConfigYAML: %s", err.Error())
 		return false
 	}
 	err = yaml.Unmarshal([]byte(oldValue), &oldConfig)
 	if err != nil {
-		tflog.Warn(context.Background(), "Failed to unmarshal oldValue")
-		tflog.Debug(context.Background(), err.Error())
+		log.Printf("[ERROR] old ConfigYAML: %s", oldValue)
+		log.Printf("[ERROR] failed to unmarshal old ConfigYAML: %s", err.Error())
 		return false
 	}
 
 	return rules.CompareNamespaces(
-		rules.RuleNamespace{
-			Namespace: "old",
-			Filepath:  "",
-			Groups:    oldConfig,
-		},
-		rules.RuleNamespace{
-			Namespace: "new",
-			Filepath:  "",
-			Groups:    newConfig,
-		}).State == rules.Unchanged
+		oldConfig,
+		newConfig,
+	).State == rules.Unchanged
 }
