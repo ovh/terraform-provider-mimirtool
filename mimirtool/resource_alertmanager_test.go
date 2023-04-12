@@ -34,7 +34,7 @@ resource "mimirtool_alertmanager" "demo" {
 `
 
 const testAccResourceAlertmanagerYaml = `---
-# See: https://grafana.com/docs/mimir/latest/operators-guide/reference-http-api/#alertmanager
+# See: https://grafana.com/docs/mimir/latest/references/http-api/#alertmanager
 global:
   smtp_smarthost: 'localhost:25'
   smtp_from: 'youraddress@example.org'

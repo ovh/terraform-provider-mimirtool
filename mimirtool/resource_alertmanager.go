@@ -15,7 +15,7 @@ func resourceAlertManager() *schema.Resource {
 	return &schema.Resource{
 		Description: `
 * [Official documentation](https://grafana.com/docs/mimir/latest/)
-* [HTTP API](https://grafana.com/docs/mimir/latest/operators-guide/reference-http-api/#alertmanager)
+* [HTTP API](https://grafana.com/docs/mimir/latest/references/http-api/#alertmanager)
 `,
 
 		CreateContext: alertmanagerCreate,
