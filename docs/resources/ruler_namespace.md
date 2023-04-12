@@ -3,13 +3,13 @@
 page_title: "mimirtool_ruler_namespace Resource - terraform-provider-mimirtool"
 subcategory: ""
 description: |-
-  Official documentation https://grafana.com/docs/mimir/latest/HTTP API https://grafana.com/docs/mimir/latest/operators-guide/reference-http-api/#ruler
+  Official documentation https://grafana.com/docs/mimir/latest/HTTP API https://grafana.com/docs/mimir/latest/references/http-api/#ruler
 ---
 
 # mimirtool_ruler_namespace (Resource)
 
 * [Official documentation](https://grafana.com/docs/mimir/latest/)
-* [HTTP API](https://grafana.com/docs/mimir/latest/operators-guide/reference-http-api/#ruler)
+* [HTTP API](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)
 
 ## Example Usage
 
