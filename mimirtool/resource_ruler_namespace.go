@@ -17,8 +17,7 @@ import (
 func resourceRulerNamespace() *schema.Resource {
 	return &schema.Resource{
 		Description: `
-* [Official documentation](https://grafana.com/docs/mimir/latest/)
-* [HTTP API](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)
+[Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)
 `,
 
 		CreateContext: rulerNamespaceCreate,

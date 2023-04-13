@@ -3,13 +3,12 @@
 page_title: "mimirtool_alertmanager Resource - terraform-provider-mimirtool"
 subcategory: ""
 description: |-
-  Official documentation https://grafana.com/docs/mimir/latest/HTTP API https://grafana.com/docs/mimir/latest/references/http-api/#alertmanager
+  Official documentation https://grafana.com/docs/mimir/latest/references/http-api/#alertmanager
 ---
 
 # mimirtool_alertmanager (Resource)
 
-* [Official documentation](https://grafana.com/docs/mimir/latest/)
-* [HTTP API](https://grafana.com/docs/mimir/latest/references/http-api/#alertmanager)
+[Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#alertmanager)
 
 ## Example Usage
 
