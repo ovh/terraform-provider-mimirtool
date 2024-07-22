@@ -16,5 +16,4 @@ services:
       test: ["CMD", "wget", "-O-", "http://localhost:8080/ready"]
       timeout: 45s
       interval: 30s
-      start_period: 40s
       retries: 3

@@ -22,16 +22,15 @@ jobs:
     steps:
       -
         name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       -
         name: Unshallow
         run: git fetch --prune --unshallow
       -
         name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-          cache: true
       -
         name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v5
@@ -41,9 +40,10 @@ jobs:
           passphrase: ${{ secrets.PASSPHRASE }}
       -
         name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v3.0.0
+        uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
+          distribution: goreleaser
+          version: "~> v2"
           args: release --rm-dist
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
