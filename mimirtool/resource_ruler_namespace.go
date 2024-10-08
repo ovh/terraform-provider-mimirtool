@@ -48,6 +48,12 @@ func resourceRulerNamespace() *schema.Resource {
 				Optional:    true,
 				Default:     false,
 			},
+			"recording_rule_check": {
+				Description: "Controls whether to run recording rule checks entirely.",
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Default:     true,
+			},
 		},
 	}
 }
@@ -94,15 +100,18 @@ func rulerNamespaceCreate(ctx context.Context, d *schema.ResourceData, meta any)
 	namespace := d.Get("namespace").(string)
 	ruleGroup := d.Get("config_yaml").(string)
 	strictRecordingRuleCheck := d.Get("strict_recording_rule_check").(bool)
+	recordingRuleCheck := d.Get("recording_rule_check").(bool)
 
 	ruleNamespace, err := getRuleNamespaceFromYAML(ctx, ruleGroup)
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
-	err = checkRecordingRules(ruleNamespace, strictRecordingRuleCheck)
-	if err != nil {
-		return diag.FromErr(err)
+	if recordingRuleCheck {
+		err = checkRecordingRules(ruleNamespace, strictRecordingRuleCheck)
+		if err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	for _, group := range ruleNamespace.Groups {
@@ -144,6 +153,7 @@ func rulerNamespaceUpdate(ctx context.Context, d *schema.ResourceData, meta any)
 	namespace := d.Get("namespace").(string)
 	ruleGroup := d.Get("config_yaml").(string)
 	strictRecordingRuleCheck := d.Get("strict_recording_rule_check").(bool)
+	recordingRuleCheck := d.Get("recording_rule_check").(bool)
 
 	errDiag := rulerNamespaceCreate(ctx, d, meta)
 	if errDiag != nil {
@@ -155,9 +165,11 @@ func rulerNamespaceUpdate(ctx context.Context, d *schema.ResourceData, meta any)
 	if err != nil {
 		return diag.FromErr(err)
 	}
-	err = checkRecordingRules(ruleNamespace, strictRecordingRuleCheck)
-	if err != nil {
-		return diag.FromErr(err)
+	if recordingRuleCheck {
+		err = checkRecordingRules(ruleNamespace, strictRecordingRuleCheck)
+		if err != nil {
+			return diag.FromErr(err)
+		}
 	}
 
 	var nsGroupNames []string
