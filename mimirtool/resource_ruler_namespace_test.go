@@ -105,6 +105,23 @@ func TestAccResourceNamespaceCheckRules(t *testing.T) {
 			},
 		},
 	})
+	resource.UnitTest(t, resource.TestCase{
+		PreCheck:          func() { testAccPreCheck(t) },
+		ProviderFactories: testAccProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccResourceNamespaceNoCheck,
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "namespace", "demo"),
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "recording_rule_check", "false"),
+					resource.TestCheckResourceAttr(
+						"mimirtool_ruler_namespace.demo", "config_yaml", testAccResourceNamespaceNoCheckExpected),
+				),
+			},
+		},
+	})
 }
 
 func TestAccResourceNamespaceParseRules(t *testing.T) {
@@ -189,6 +206,20 @@ resource "mimirtool_ruler_namespace" "demo" {
   }
 `
 
+const testAccResourceNamespaceNoCheck = `
+resource "mimirtool_ruler_namespace" "demo" {
+	namespace = "demo"
+	config_yaml = file("testdata/rules-fails-check.yaml")
+	recording_rule_check = false
+  }
+`
+
+const testAccResourceNamespaceNoCheckExpected = `groups:
+    - name: mimir_api_1
+      rules:
+        - record: cluster_job_cortex_request_duration_seconds_99quantile
+          expr: histogram_quantile(0.99, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
+`
 const testAccResourceNamespaceParseError = `
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"

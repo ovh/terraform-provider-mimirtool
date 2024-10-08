@@ -39,6 +39,7 @@ EOT
 
 ### Optional
 
+- `recording_rule_check` (Boolean) Controls whether to run recording rule checks entirely.
 - `strict_recording_rule_check` (Boolean) Fails rules checks that do not match best practices exactly. See: https://prometheus.io/docs/practices/rules/
 
 ### Read-Only
