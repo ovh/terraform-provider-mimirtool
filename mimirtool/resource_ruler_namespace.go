@@ -191,7 +191,7 @@ func rulerNamespaceUpdate(ctx context.Context, d *schema.ResourceData, meta any)
 	for _, name := range currentGroupsNames {
 		if !slices.Contains(nsGroupNames, name) {
 			errRaw := client.DeleteRuleGroup(ctx, namespace, name)
-			if err != nil {
+			if errRaw != nil {
 				return diag.FromErr(errRaw)
 			}
 		}
