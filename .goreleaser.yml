@@ -10,11 +10,11 @@ builds:
       # usage by users in CI/CD systems like Terraform Cloud where
       # they are unable to install libraries.
       - CGO_ENABLED=0
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     flags:
       - -trimpath
     ldflags:
-      - '-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}'
+      - "-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}"
     goos:
       - freebsd
       - windows
@@ -23,15 +23,15 @@ builds:
     goarch:
       - amd64
       - arm64
-    binary: '{{ .ProjectName }}_v{{ .Version }}'
+    binary: "{{ .ProjectName }}_v{{ .Version }}"
 archives:
   - format: zip
-    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 checksum:
   extra_files:
-    - glob: 'terraform-registry-manifest.json'
-      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
-  name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
+    - glob: "terraform-registry-manifest.json"
+      name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
+  name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
   algorithm: sha256
 signs:
   - artifacts: checksum
@@ -40,16 +40,17 @@ signs:
       # need to pass the batch flag to indicate its not interactive.
       - "--batch"
       - "--local-user"
-      - "{{ .Env.GPG_FINGERPRINT }}"  # set this environment variable for your signing key
+      - "{{ .Env.GPG_FINGERPRINT }}" # set this environment variable for your signing key
       - "--output"
       - "${signature}"
       - "--detach-sign"
       - "${artifact}"
 release:
   extra_files:
-    - glob: 'terraform-registry-manifest.json'
-      name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
+    - glob: "terraform-registry-manifest.json"
+      name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
   # If you want to manually examine the release before its live, uncomment this line:
   draft: true
 changelog:
-  disable: true
+  disable: false
+  use: github
