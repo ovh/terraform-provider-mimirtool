@@ -121,7 +121,7 @@ func rulerNamespaceCreate(ctx context.Context, d *schema.ResourceData, meta any)
 		}
 	}
 
-	d.SetId(hash(namespace))
+	d.SetId(randStringBytes(64))
 	return rulerNamespaceRead(ctx, d, meta)
 }
 
