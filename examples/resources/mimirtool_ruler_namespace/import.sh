@@ -1,0 +1,1 @@
+terraform import mimirtool_ruler_namespace.demo demo

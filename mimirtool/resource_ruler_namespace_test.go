@@ -30,6 +30,14 @@ func TestAccResourceNamespace(t *testing.T) {
 						"mimirtool_ruler_namespace.demo", "config_yaml", testAccResourceNamespaceYamlAfterUpdate),
 				),
 			},
+			{
+				ResourceName:      "mimirtool_ruler_namespace.demo",
+				ImportStateId:     "demo",
+				ImportState:       true,
+				ImportStateVerify: true,
+				// These fields can't be retrieved from mimir ruler
+				ImportStateVerifyIgnore: []string{"recording_rule_check", "strict_recording_rule_check"},
+			},
 		},
 	})
 }
