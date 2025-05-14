@@ -25,7 +25,7 @@ func resourceRulerNamespace() *schema.Resource {
 		UpdateContext: rulerNamespaceUpdate,
 		DeleteContext: rulerNamespaceDelete,
 		Importer: &schema.ResourceImporter{
-			StateContext: schema.ImportStatePassthroughContext,
+			StateContext: rulerNamespaceImport,
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -211,6 +211,16 @@ func rulerNamespaceDelete(ctx context.Context, d *schema.ResourceData, meta any)
 
 	d.SetId("")
 	return diags
+}
+
+func rulerNamespaceImport(ctx context.Context, d *schema.ResourceData, meta interface{}) ([]*schema.ResourceData, error) {
+	namespace := d.Id()
+	d.Set("namespace", namespace)
+	d.SetId(hash(namespace))
+
+	results := make([]*schema.ResourceData, 1)
+	results[0] = d
+	return results, nil
 }
 
 // Borrowed from https://github.com/grafana/terraform-provider-grafana/blob/master/grafana/resource_dashboard.go
