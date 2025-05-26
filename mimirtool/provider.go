@@ -2,6 +2,7 @@ package mimirtool
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/grafana/dskit/crypto/tls"
 	mimirtool "github.com/grafana/mimir/pkg/mimirtool/client"
+	mimirVersion "github.com/grafana/mimir/pkg/util/version"
 )
 
 func init() {
@@ -124,11 +126,10 @@ func configure(version string, p *schema.Provider) func(context.Context, *schema
 			diags diag.Diagnostics
 			err   error
 		)
-		p.UserAgent("terraform-provider-mimirtool", version)
 
 		c := &client{}
 
-		c.cli, err = getDefaultMimirClient(d)
+		c.cli, err = getDefaultMimirClient(d, version)
 		if err != nil {
 			return nil, diag.FromErr(err)
 		}
@@ -136,8 +137,8 @@ func configure(version string, p *schema.Provider) func(context.Context, *schema
 	}
 }
 
-func getDefaultMimirClient(d *schema.ResourceData) (mimirClientInterface, error) {
-
+func getDefaultMimirClient(d *schema.ResourceData, version string) (mimirClientInterface, error) {
+	mimirVersion.Version = fmt.Sprintf("terraform-provider-mimirtool-%s", version)
 	return mimirtool.New(mimirtool.Config{
 		AuthToken: d.Get("auth_token").(string),
 		User:      d.Get("api_user").(string),
