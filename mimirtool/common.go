@@ -1,13 +1,17 @@
 package mimirtool
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"math/rand"
 )
 
-func hash(s string) string {
-	sha := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sha[:])
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func randStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
 }
 
 func stringValueMap(src map[string]interface{}) map[string]string {
