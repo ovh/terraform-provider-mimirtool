@@ -1,4 +1,4 @@
-package mimirtool
+package provider
 
 import (
 	context "context"
@@ -6,7 +6,7 @@ import (
 	rwrulefmt "github.com/grafana/mimir/pkg/mimirtool/rules/rwrulefmt"
 )
 
-type client struct {
+type myClient struct {
 	cli mimirClientInterface
 }
 

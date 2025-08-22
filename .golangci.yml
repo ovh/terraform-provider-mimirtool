@@ -1,0 +1,88 @@
+version: "2"
+run:
+  build-tags:
+    - netgo
+    - requires_docker
+    - requires_libpcap
+output:
+  formats:
+    text:
+      path: stdout
+      colors: false
+linters:
+  default: none
+  enable:
+    # Checks whether HTTP response body is closed successfully.
+    - bodyclose
+    # Checks whether Rows.Err of rows is checked successfully.
+    # - rowserrcheck # Does not support generics yet (see https://github.com/golangci/golangci-lint/issues/2649)
+    # Detects places where loop variables are copied.
+    - copyloopvar
+    # Checks assignments with too many blank identifiers (e.g. x, , , _, := f()).
+    - dogsled
+    # Tool for code clone detection.
+    - dupl
+    # Checking for unchecked errors in Go code.
+    # These unchecked errors can be critical bugs in some cases.
+    - errcheck
+    # Find code that will cause problems with the error wrapping scheme introduced in Go 1.13.
+    - errorlint
+    - fatcontext
+    # Finds repeated strings that could be replaced by a constant.
+    - goconst
+    # Checks that printf-like functions are named with f at the end.
+    - goprintffuncname
+    # Inspects source code for security problems.
+    - gosec
+    # Vet examines Go source code and reports suspicious constructs.
+    - govet
+    # Detects when assignments to existing variables are not used.
+    - ineffassign
+    # Finds commonly misspelled English words.
+    - misspell
+    # Checks that functions with naked returns are not longer than a maximum size (can be zero).
+    - nakedret
+    # It's a set of rules from staticcheck.
+    # Reports ill-formed or insufficient nolint directives.
+    - nolintlint
+    # Fast, configurable, extensible, flexible, and beautiful linter for Go.
+    - revive
+    - staticcheck
+    # Remove unnecessary type conversions.
+    - unconvert
+    # Reports unused function parameters.
+    - unparam
+    # Reports unused function parameters.
+    - unused
+  settings:
+    errorlint:
+      errorf: false
+      asserts: false
+      comparison: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - revive
+        text: if-return
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    # Check whether code was gofmt-ed.
+    - gofmt
+    # Check import statements are formatted according to the 'goimport' command.
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
