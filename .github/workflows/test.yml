@@ -61,15 +61,16 @@ jobs:
         # regularly on HashiCorp product pages for each HashiCorp product.
         # See: https://support.hashicorp.com/hc/en-us/articles/360021185113
         terraform:
-          - "1.8.*"
-          - "1.9.*"
-          - "1.10.*"
+          - "1.11.*"
+          - "1.12.*"
+          - "1.13.*"
+          - "1.14.*"
         # We will support the 3 last minor versions as Grafana honor 2 versions
         # before dropping a deprecated flag
         mimir:
-          - "2.13.0"
-          - "2.14.0"
-          - "2.15.0"
+          - "2.16.0"
+          - "2.17.0"
+          - "3.0.0"
 
     steps:
       - name: Check out code into the Go module directory
