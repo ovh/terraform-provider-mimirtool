@@ -3,12 +3,12 @@
 page_title: "mimirtool_alertmanager Resource - terraform-provider-mimirtool"
 subcategory: ""
 description: |-
-  Official documentation https://grafana.com/docs/mimir/latest/references/http-api/#alertmanager
+  Manages the Alertmanager configuration in Grafana Mimir. Official documentation https://grafana.com/docs/mimir/latest/references/http-api/#alertmanager
 ---
 
 # mimirtool_alertmanager (Resource)
 
-[Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#alertmanager)
+Manages the Alertmanager configuration in Grafana Mimir. [Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#alertmanager)
 
 ## Example Usage
 
@@ -41,14 +41,12 @@ EOT
 
 ### Required
 
-- `config_yaml` (String) The Alertmanager configuration to load in Grafana Mimir as YAML.
+- `config_yaml` (String) The Alertmanager configuration to load in Grafana Mimir as YAML. This should be a valid Alertmanager YAML config.
 
 ### Optional
 
-- `templates_config_yaml` (Map of String) The templates to load along with the configuration.
+- `templates_config_yaml` (Map of String) A map of template names to template YAML content to load along with the Alertmanager configuration.
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
-
-
+- `id` (String) ID for the Alertmanager resource (always 'alertmanager'). This is a singleton resource per tenant.
