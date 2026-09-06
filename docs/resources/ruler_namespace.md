@@ -34,21 +34,24 @@ EOT
 
 ### Required
 
-- `config_yaml` (String) The namespace's groups rules definition to create in Grafana Mimir as YAML.
+- `config_yaml` (String) User supplied namespace's groups rules definition to create in Grafana Mimir as YAML.
 - `namespace` (String) The name of the namespace to create in Grafana Mimir.
 
 ### Optional
 
 - `recording_rule_check` (Boolean) Controls whether to run recording rule checks entirely.
+- `remote_config_yaml` (String) The namespace's groups rules definition stored in Grafana Mimir as YAML.
 - `strict_recording_rule_check` (Boolean) Fails rules checks that do not match best practices exactly. See: https://prometheus.io/docs/practices/rules/
 
 ### Read-Only
 
-- `id` (String) The ID of this resource.
+- `id` (String) hash
 
 ## Import
 
 Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
 terraform import mimirtool_ruler_namespace.demo demo
