@@ -3,12 +3,12 @@
 page_title: "mimirtool_ruler_namespace Resource - terraform-provider-mimirtool"
 subcategory: ""
 description: |-
-  Official documentation https://grafana.com/docs/mimir/latest/references/http-api/#ruler
+  Manages the rule groups of a Grafana Mimir ruler namespace. A configured group deleted or modified in Mimir after an apply is detected on refresh and pushed again by the next apply. Official documentation https://grafana.com/docs/mimir/latest/references/http-api/#ruler
 ---
 
 # mimirtool_ruler_namespace (Resource)
 
-[Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)
+Manages the rule groups of a Grafana Mimir ruler namespace. A configured group deleted or modified in Mimir after an apply is detected on refresh and pushed again by the next apply. [Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)
 
 ## Example Usage
 
