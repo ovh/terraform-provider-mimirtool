@@ -2,7 +2,9 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/grafana/mimir/pkg/mimirtool/client"
@@ -53,7 +55,7 @@ func (r *RulerNamespaceResource) Schema(ctx context.Context, _ resource.SchemaRe
 	tflog.Debug(ctx, "SCHEMA - init")
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "[Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)",
+		MarkdownDescription: "Manages the rule groups of a Grafana Mimir ruler namespace. A configured group deleted or modified in Mimir after an apply is detected on refresh and pushed again by the next apply. [Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -205,10 +207,25 @@ func (r *RulerNamespaceResource) Read(ctx context.Context, req resource.ReadRequ
 
 	namespace := state.Namespace.ValueString()
 
-	// Use the same helper as Create/Update for fetching and normalizing YAML
 	normalized, ok := fetchAndNormalizeRemoteConfigYAML(ctx, r.client, namespace, "READ", &resp.Diagnostics)
 	if !ok {
 		return
+	}
+
+	// config_yaml changes only when the ruler no longer holds what the last
+	// apply left there, so the plan re-pushes groups deleted or edited in
+	// Mimir. It is left untouched otherwise, to keep the user's formatting out
+	// of the plan.
+	if !state.ConfigYAML.IsNull() && state.RemoteConfigYAML.ValueString() != "" {
+		drifted, err := namespaceDrifted(state.ConfigYAML.ValueString(), state.RemoteConfigYAML.ValueString(), normalized)
+		if err != nil {
+			resp.Diagnostics.AddError("Error comparing the namespace with Mimir", err.Error())
+			return
+		}
+		if drifted {
+			tflog.Info(ctx, "READ: namespace changed in Mimir since the last apply", map[string]interface{}{"namespace": namespace})
+			state.ConfigYAML = types.StringValue(normalized)
+		}
 	}
 	state.RemoteConfigYAML = types.StringValue(normalized)
 	state.ID = types.StringValue(hash(namespace))
@@ -326,16 +343,6 @@ func (r *RulerNamespaceResource) Update(ctx context.Context, req resource.Update
 	strictRecordingRuleCheck := plan.StrictRecordingRuleCheck.ValueBool()
 	recordingRuleCheck := plan.RecordingRuleCheck.ValueBool()
 
-	// Delete the current namespace to replace it
-	err := r.client.DeleteNamespace(ctx, namespace)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to delete existing namespace",
-			err.Error(),
-		)
-		return
-	}
-
 	ruleNamespace, err := getRuleNamespaceFromYAML(ctx, ruleGroup)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -356,10 +363,9 @@ func (r *RulerNamespaceResource) Update(ctx context.Context, req resource.Update
 		}
 	}
 
-	// Create all rule groups for the namespace
-	if err := createAllRuleGroups(ctx, r.client, namespace, ruleNamespace.Groups); err != nil {
+	if err := syncRuleGroups(ctx, r.client, namespace, ruleNamespace.Groups); err != nil {
 		resp.Diagnostics.AddError(
-			"Failed to create rule groups",
+			"Failed to update rule groups",
 			err.Error(),
 		)
 		return
@@ -388,6 +394,85 @@ func createAllRuleGroups(ctx context.Context, client *client.MimirClient, namesp
 	return nil
 }
 
+// Never delete the namespace first: the ruler would hold none of its groups
+// until the rewrite finished, and only part of them if it failed midway.
+func syncRuleGroups(ctx context.Context, c *client.MimirClient, namespace string, groups []rwrulefmt.RuleGroup) error {
+	remote, err := c.ListRules(ctx, namespace)
+	if err != nil && !errors.Is(err, client.ErrResourceNotFound) {
+		return err
+	}
+
+	if err := createAllRuleGroups(ctx, c, namespace, groups); err != nil {
+		return err
+	}
+
+	configured := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		configured[group.Name] = struct{}{}
+	}
+	for _, group := range remote[namespace] {
+		if _, ok := configured[group.Name]; !ok {
+			if err := c.DeleteRuleGroup(ctx, namespace, group.Name); err != nil && !errors.Is(err, client.ErrResourceNotFound) {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Compares what Mimir returned after the last apply with what it returns now,
+// never with config_yaml: Mimir drops fields it does not store (a group's
+// limit on 2.16), which would read as drift on every plan. Only configured
+// groups count; one added in Mimir alone is still removed by the next update,
+// as before, but does not trigger it.
+func namespaceDrifted(configYAML, appliedRemoteYAML, currentRemoteYAML string) (bool, error) {
+	var configured rules.RuleNamespace
+	if err := yaml.Unmarshal([]byte(configYAML), &configured); err != nil {
+		return false, fmt.Errorf("failed to unmarshal YAML config: %w", err)
+	}
+	applied, err := canonicalGroups(appliedRemoteYAML)
+	if err != nil {
+		return false, err
+	}
+	current, err := canonicalGroups(currentRemoteYAML)
+	if err != nil {
+		return false, err
+	}
+	for _, group := range configured.Groups {
+		if !reflect.DeepEqual(applied[group.Name], current[group.Name]) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// Each group is linted on its own: LintExpressions stops at the first
+// expression it cannot parse, which would leave the following groups
+// unnormalized depending on what sits before them.
+func canonicalGroups(configYAML string) (map[string]any, error) {
+	var ruleNamespace rules.RuleNamespace
+	if err := yaml.Unmarshal([]byte(configYAML), &ruleNamespace); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal YAML config: %w", err)
+	}
+
+	groups := make(map[string]any, len(ruleNamespace.Groups))
+	for _, group := range ruleNamespace.Groups {
+		single := rules.RuleNamespace{Groups: []rwrulefmt.RuleGroup{group}}
+		_, _, _ = single.LintExpressions(rules.MimirBackend)
+
+		groupBytes, err := yaml.Marshal(single.Groups[0])
+		if err != nil {
+			return nil, err
+		}
+		var decoded any
+		if err := yaml.Unmarshal(groupBytes, &decoded); err != nil {
+			return nil, err
+		}
+		groups[group.Name] = decoded
+	}
+	return groups, nil
+}
+
 // Helper function for fetching and normalizing the remote config YAML
 func fetchAndNormalizeRemoteConfigYAML(
 	ctx context.Context,
@@ -396,13 +481,18 @@ func fetchAndNormalizeRemoteConfigYAML(
 	op string,
 	diagnostics *diag.Diagnostics,
 ) (string, bool) {
+	normalized, err := readRemoteConfigYAML(ctx, client, namespace, op)
+	if err != nil {
+		diagnostics.AddError(fmt.Sprintf("Error Reading Mimir RuleGroup after %s", op), err.Error())
+		return "", false
+	}
+	return normalized, true
+}
+
+func readRemoteConfigYAML(ctx context.Context, client *client.MimirClient, namespace string, op string) (string, error) {
 	remoteNamespaceRuleGroup, err := client.ListRules(ctx, namespace)
 	if err != nil {
-		diagnostics.AddError(
-			fmt.Sprintf("Error Reading Mimir RuleGroup after %s", op),
-			fmt.Sprintf("Could not read Mimir rulegroup for namespace %q: %s", namespace, err.Error()),
-		)
-		return "", false
+		return "", fmt.Errorf("could not read Mimir rulegroup for namespace %q: %w", namespace, err)
 	}
 
 	tflog.Trace(ctx, op+": raw value for remoteNamespaceRuleGroup", map[string]interface{}{"remoteNamespaceRuleGroup": remoteNamespaceRuleGroup})
@@ -417,22 +507,14 @@ func fetchAndNormalizeRemoteConfigYAML(
 
 	remoteConfigYAML, err := yaml.Marshal(remoteNamespaceRuleGroup)
 	if err != nil {
-		diagnostics.AddError(
-			fmt.Sprintf("Error marshaling rule group YAML after %s", op),
-			err.Error(),
-		)
-		return "", false
+		return "", fmt.Errorf("error marshaling rule group YAML: %w", err)
 	}
 	tflog.Debug(ctx, op+": YAML to be set in state", map[string]interface{}{"remote_config_yaml": remoteConfigYAML})
 	normalized, count, mod, err := normalizeNamespaceYAML(string(remoteConfigYAML))
 	if err != nil {
-		diagnostics.AddError(
-			fmt.Sprintf("Error while normalizing namespace YAML after %s", op),
-			err.Error(),
-		)
-		return "", false
+		return "", fmt.Errorf("error while normalizing namespace YAML: %w", err)
 	}
 	tflog.Debug(ctx, op+": results from normalizeNamespaceYAML", map[string]interface{}{"count": count, "mod": mod, "raw": normalized})
 
-	return normalized, true
+	return normalized, nil
 }

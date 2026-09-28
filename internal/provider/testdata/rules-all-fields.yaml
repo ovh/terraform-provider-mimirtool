@@ -1,0 +1,26 @@
+groups:
+  - name: all_fields_alerts
+    interval: 2m
+    limit: 10
+    query_offset: 30s
+    rules:
+      - alert: HighRequestLatency
+        expr: histogram_quantile(0.99, sum(rate(cortex_request_duration_seconds_bucket[5m])) by (le, job)) > 1
+        for: 10m
+        keep_firing_for: 5m
+        labels:
+          severity: "critical"
+          tier: '1'
+        annotations:
+          summary: "Latency on {{ $labels.job }}"
+          description: |
+            p99 latency is {{ $value | humanizeDuration }}.
+            Check the "request" path first.
+      - alert: NoFor
+        expr: up == 0
+  - name: all_fields_records
+    rules:
+      - record: job:cortex_request_duration_seconds:rate5m
+        expr: sum by (job) (rate(cortex_request_duration_seconds_count[5m]))
+        labels:
+          source: 'recorded'
