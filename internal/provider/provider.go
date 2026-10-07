@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/dskit/crypto/tls"
 	mimirtool "github.com/grafana/mimir/pkg/mimirtool/client"
 	mimirVersion "github.com/grafana/mimir/pkg/util/version"
@@ -193,7 +194,7 @@ func getDefaultMimirClient(cfg MimirClientConfig, version string) (mimirClientIn
 			KeyPath:            cfg.TLSKeyPath,
 			InsecureSkipVerify: cfg.InsecureSkipVerify,
 		},
-	})
+	}, log.NewNopLogger())
 }
 
 func (p *MimirtoolProvider) Resources(_ context.Context) []func() resource.Resource {

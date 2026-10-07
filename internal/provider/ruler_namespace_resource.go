@@ -7,9 +7,11 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/go-kit/log"
 	"github.com/grafana/mimir/pkg/mimirtool/client"
 	"github.com/grafana/mimir/pkg/mimirtool/rules"
 	"github.com/grafana/mimir/pkg/mimirtool/rules/rwrulefmt"
+	mimirtoolUtil "github.com/grafana/mimir/pkg/mimirtool/util"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -19,7 +21,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"gopkg.in/yaml.v3"
+	"github.com/prometheus/common/model"
+	"go.yaml.in/yaml/v3"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces.
@@ -288,10 +291,10 @@ func (r *RulerNamespaceResource) ImportState(ctx context.Context, req resource.I
 
 func getRuleNamespaceFromYAML(_ context.Context, configYAML string) (rules.RuleNamespace, error) {
 	var ruleNamespace rules.RuleNamespace
-	// We pass only one ruleGroup while ParseBytes return an array, we only need the first element
-	ruleNamespaces, err := rules.ParseBytes([]byte(configYAML))
-	if err != nil {
-		return ruleNamespace, fmt.Errorf("failed to parse namespace definition:\n%s", err)
+	// Same validation scheme and parser options as `mimirtool rules` commands.
+	ruleNamespaces, errs := rules.ParseBytes([]byte(configYAML), model.LegacyValidation, mimirtoolUtil.CreatePromQLParser(false))
+	if len(errs) > 0 {
+		return ruleNamespace, fmt.Errorf("failed to parse namespace definition:\n%s", errors.Join(errs...))
 	}
 
 	if len(ruleNamespaces) > 1 {
@@ -304,7 +307,7 @@ func getRuleNamespaceFromYAML(_ context.Context, configYAML string) (rules.RuleN
 }
 
 func checkRecordingRules(ruleNamespace rules.RuleNamespace, strict bool) error {
-	invalidRulesCount := ruleNamespace.CheckRecordingRules(strict)
+	invalidRulesCount := ruleNamespace.CheckRecordingRules(strict, log.NewNopLogger())
 	if invalidRulesCount > 0 {
 		return fmt.Errorf("namespace contains %d rules that don't match the requirements", invalidRulesCount)
 	}
@@ -320,7 +323,7 @@ func normalizeNamespaceYAML(config any) (string, int, int, error) {
 	if err != nil {
 		return "", 0, 0, fmt.Errorf("failed to unmarshal YAML config")
 	}
-	count, mod, _ := ruleNamespace.LintExpressions(rules.MimirBackend)
+	count, mod, _ := ruleNamespace.LintExpressions(rules.MimirBackend, mimirtoolUtil.CreatePromQLParser(false), log.NewNopLogger())
 
 	namespaceBytes, _ := yaml.Marshal(ruleNamespace)
 	return string(namespaceBytes), count, mod, err
@@ -458,7 +461,7 @@ func canonicalGroups(configYAML string) (map[string]any, error) {
 	groups := make(map[string]any, len(ruleNamespace.Groups))
 	for _, group := range ruleNamespace.Groups {
 		single := rules.RuleNamespace{Groups: []rwrulefmt.RuleGroup{group}}
-		_, _, _ = single.LintExpressions(rules.MimirBackend)
+		_, _, _ = single.LintExpressions(rules.MimirBackend, mimirtoolUtil.CreatePromQLParser(false), log.NewNopLogger())
 
 		groupBytes, err := yaml.Marshal(single.Groups[0])
 		if err != nil {
