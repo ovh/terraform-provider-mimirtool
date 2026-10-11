@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"go.yaml.in/yaml/v3"
 )
@@ -60,7 +62,7 @@ func SemanticYAMLStateCheck(resourceName, attr, expected string) statecheck.Stat
 
 func TestAccResourceNamespace(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -97,7 +99,7 @@ func TestAccResourceNamespace(t *testing.T) {
 
 func TestAccResourceNamespaceRename(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -126,7 +128,7 @@ func TestAccResourceNamespaceRename(t *testing.T) {
 
 func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -146,7 +148,7 @@ func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
 
 func TestAccResourceNamespaceQuoting(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -166,7 +168,7 @@ func TestAccResourceNamespaceQuoting(t *testing.T) {
 
 func TestAccResourceNamespaceCheckRules(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -179,7 +181,7 @@ func TestAccResourceNamespaceCheckRules(t *testing.T) {
 
 func TestAccResourceNamespaceNoCheck(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -204,7 +206,7 @@ func TestAccResourceNamespaceNoCheck(t *testing.T) {
 
 func TestAccResourceNamespaceParseRules(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -217,7 +219,7 @@ func TestAccResourceNamespaceParseRules(t *testing.T) {
 
 func TestAccResourceNamespaceRemoteConfigReadOnly(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -358,3 +360,24 @@ const testAccResourceNamespaceQuotingExpected = `groups:
                   LABELS = {{ $labels }}
             summary: Host high CPU load (instance {{ $labels.instance }})
 `
+
+func TestAccResourceNamespaceTenantIsolation(t *testing.T) {
+	tenant, other := testAccTenant(), testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccConfig(tenant, testAccResourceNamespace),
+				Check: func(*terraform.State) error {
+					if !strings.Contains(rulerGet(t, tenant, "demo"), "mimir_api_1") {
+						return fmt.Errorf("tenant %s does not hold the namespace it applied", tenant)
+					}
+					if strings.Contains(rulerGet(t, other, "demo"), "mimir_api_1") {
+						return fmt.Errorf("tenant %s sees the namespace of tenant %s", other, tenant)
+					}
+					return nil
+				},
+			},
+		},
+	})
+}

@@ -1,5 +1,6 @@
 # Based on https://grafana.com/docs/mimir/latest/operators-guide/get-started/
-multitenancy_enabled: false
+# Each acceptance test runs in its own tenant, and the tests check the tenant header.
+multitenancy_enabled: true
 target: all,alertmanager
 server:
   log_level: debug

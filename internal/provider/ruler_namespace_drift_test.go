@@ -5,6 +5,7 @@ package provider
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -36,6 +37,25 @@ func testAccRulerRequest(t *testing.T, tenant, method, path, body string) {
 	}
 }
 
+func rulerGet(t *testing.T, tenant, path string) string {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, testAccRulerAPI+path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Scope-OrgID", tenant)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(body)
+}
+
 func driftRepairStep(tenant string, preConfig func()) resource.TestStep {
 	return resource.TestStep{
 		PreConfig: preConfig,
@@ -53,7 +73,7 @@ func driftRepairStep(tenant string, preConfig func()) resource.TestStep {
 
 func TestAccResourceNamespaceDrift(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -130,7 +150,7 @@ rules:
 
 func TestAccResourceNamespaceDestroyDeletedInMimir(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -149,7 +169,7 @@ func TestAccResourceNamespaceDestroyDeletedInMimir(t *testing.T) {
 
 func TestAccResourceNamespaceCreateRemovesUnconfiguredGroups(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -167,7 +187,7 @@ func TestAccResourceNamespaceCreateRemovesUnconfiguredGroups(t *testing.T) {
 
 func TestAccResourceNamespaceDriftAllFields(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -202,7 +222,7 @@ func TestAccResourceNamespaceUpgradeFromRelease(t *testing.T) {
 	for _, fixture := range []string{"rules2.yaml", "rules-all-fields.yaml"} {
 		t.Run(fixture, func(t *testing.T) {
 			config := testAccConfig(testAccTenant(), fmt.Sprintf(testAccResourceNamespaceUpgrade, fixture))
-			resource.Test(t, resource.TestCase{
+			resource.ParallelTest(t, resource.TestCase{
 				Steps: []resource.TestStep{
 					{
 						ExternalProviders: map[string]resource.ExternalProvider{

@@ -12,7 +12,7 @@ import (
 
 func TestAccResourceAlertmanager(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -30,7 +30,7 @@ func TestAccResourceAlertmanager(t *testing.T) {
 
 func TestAccResourceAlertmanagerNoTemplates(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -45,7 +45,7 @@ func TestAccResourceAlertmanagerNoTemplates(t *testing.T) {
 
 func TestAccResourceAlertmanagerEmptyTemplates(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -60,7 +60,7 @@ func TestAccResourceAlertmanagerEmptyTemplates(t *testing.T) {
 
 func TestAccResourceAlertmanagerParseError(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
@@ -73,7 +73,7 @@ func TestAccResourceAlertmanagerParseError(t *testing.T) {
 
 func TestAccResourceAlertmanagerImport(t *testing.T) {
 	tenant := testAccTenant()
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
