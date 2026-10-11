@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"go.yaml.in/yaml/v3"
@@ -114,12 +115,19 @@ func TestAccResourceNamespaceRename(t *testing.T) {
 			},
 			{
 				Config: testAccConfig(tenant, testAccResourceNamespaceRenameAfterUpdate),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("mimirtool_ruler_namespace.alerts", plancheck.ResourceActionDestroyBeforeCreate),
+					},
+				},
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.alerts",
 						tfjsonpath.New("namespace"),
 						knownvalue.StringExact("infra"),
 					),
+					rulerNamespaceInMimir{t: t, tenant: tenant, namespace: "alerts_infra", want: false},
+					rulerNamespaceInMimir{t: t, tenant: tenant, namespace: "infra", want: true},
 				},
 			},
 		},
