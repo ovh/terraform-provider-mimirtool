@@ -134,6 +134,24 @@ rules:
     expr: sum by (job) (up)
 `
 
+func TestAccResourceNamespaceDestroyDeletedInMimir(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccResourceNamespaceDrift,
+			},
+			{
+				PreConfig: func() {
+					rulerRequest(t, http.MethodDelete, "drift", "")
+				},
+				Config:  testAccResourceNamespaceDrift,
+				Destroy: true,
+			},
+		},
+	})
+}
+
 func TestAccResourceNamespaceDriftAllFields(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,

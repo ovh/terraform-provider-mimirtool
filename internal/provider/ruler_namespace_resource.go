@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/mimir/pkg/mimirtool/client"
@@ -238,32 +237,19 @@ func (r *RulerNamespaceResource) Read(ctx context.Context, req resource.ReadRequ
 func (r *RulerNamespaceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	tflog.Debug(ctx, "DELETE - init")
 	var state RulerNamespaceResourceModel
-
-	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-
-	// Extract namespace from state
-	namespace := state.Namespace.ValueString()
-
-	tflog.Debug(ctx, "DELETE - values from state", map[string]interface{}{
-		"state_config_yaml": state.ConfigYAML.ValueString(),
-	})
-
-	err := r.client.DeleteNamespace(ctx, namespace)
-
-	if err != nil && !strings.Contains(err.Error(), "not found") {
-		resp.Diagnostics.AddError(
-			"Unable to Delete Resource",
-			"An unexpected error occurred while attempting to delete the resource. "+
-				"Please retry the operation or report this issue to the provider developers.\n\n"+
-				"HTTP Error: "+err.Error(),
-		)
-
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// If the logic reaches here, it implicitly succeeded and will remove
-	// the resource from state if there are no other errors.
+	namespace := state.Namespace.ValueString()
+	err := r.client.DeleteNamespace(ctx, namespace)
+	if err != nil && !errors.Is(err, client.ErrResourceNotFound) {
+		resp.Diagnostics.AddError(
+			"Error deleting ruler namespace",
+			fmt.Sprintf("deleting ruler namespace (%s): %s", namespace, err),
+		)
+	}
 }
 
 func (r *RulerNamespaceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
