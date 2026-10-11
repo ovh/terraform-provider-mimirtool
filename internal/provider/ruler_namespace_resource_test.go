@@ -123,7 +123,7 @@ func TestAccResourceNamespaceImportMissing(t *testing.T) {
 				ResourceName:  "mimirtool_ruler_namespace.demo",
 				ImportState:   true,
 				ImportStateId: "demo",
-				ExpectError:   regexp.MustCompile(`ruler namespace "demo" not found`),
+				ExpectError:   regexp.MustCompile(`ruler namespace \(demo\) not found`),
 			},
 		},
 	})
@@ -220,7 +220,7 @@ func TestAccResourceNamespaceCheckRules(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccConfig(tenant, testAccResourceNamespaceFailsCheck),
-				ExpectError: regexp.MustCompile("namespace contains 1 rules that don't match the requirements"),
+				ExpectError: regexp.MustCompile(`(?s)Error creating ruler namespace.*checking recording rules of ruler\s+namespace\s+\(demo\):\s+namespace\s+contains\s+1\s+rules`),
 			},
 		},
 	})
