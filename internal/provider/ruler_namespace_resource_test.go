@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"go.yaml.in/yaml/v3"
 )
@@ -64,6 +62,7 @@ func TestAccResourceNamespace(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceNamespace),
@@ -101,6 +100,7 @@ func TestAccResourceNamespaceRename(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceNamespaceRename),
@@ -130,6 +130,7 @@ func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceNamespaceWhitespaceDiff),
@@ -150,6 +151,7 @@ func TestAccResourceNamespaceQuoting(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceNamespaceQuoting),
@@ -170,6 +172,7 @@ func TestAccResourceNamespaceCheckRules(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccConfig(tenant, testAccResourceNamespaceFailsCheck),
@@ -183,6 +186,7 @@ func TestAccResourceNamespaceNoCheck(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceNamespaceNoCheck),
@@ -208,6 +212,7 @@ func TestAccResourceNamespaceParseRules(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccConfig(tenant, testAccResourceNamespaceParseError),
@@ -221,6 +226,7 @@ func TestAccResourceNamespaceRemoteConfigReadOnly(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccConfig(tenant, testAccResourceNamespaceRemoteConfigSet),
@@ -365,17 +371,13 @@ func TestAccResourceNamespaceTenantIsolation(t *testing.T) {
 	tenant, other := testAccTenant(), testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceNamespace),
-				Check: func(*terraform.State) error {
-					if !strings.Contains(rulerGet(t, tenant, "demo"), "mimir_api_1") {
-						return fmt.Errorf("tenant %s does not hold the namespace it applied", tenant)
-					}
-					if strings.Contains(rulerGet(t, other, "demo"), "mimir_api_1") {
-						return fmt.Errorf("tenant %s sees the namespace of tenant %s", other, tenant)
-					}
-					return nil
+				ConfigStateChecks: []statecheck.StateCheck{
+					rulerNamespaceInMimir{t: t, tenant: tenant, namespace: "demo", want: true},
+					rulerNamespaceInMimir{t: t, tenant: other, namespace: "demo", want: false},
 				},
 			},
 		},

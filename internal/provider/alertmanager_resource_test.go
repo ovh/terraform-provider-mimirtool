@@ -1,12 +1,15 @@
 package provider
 
 import (
+	"fmt"
+	"net/http"
 	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
@@ -14,6 +17,7 @@ func TestAccResourceAlertmanager(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceAlertmanager),
@@ -32,6 +36,7 @@ func TestAccResourceAlertmanagerNoTemplates(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceAlertmanagerNoTemplates),
@@ -47,6 +52,7 @@ func TestAccResourceAlertmanagerEmptyTemplates(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceAlertmanagerEmptyTemplates),
@@ -62,6 +68,7 @@ func TestAccResourceAlertmanagerParseError(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config:      testAccConfig(tenant, testAccResourceAlertmanagerParseError),
@@ -75,6 +82,7 @@ func TestAccResourceAlertmanagerImport(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceAlertmanager),
@@ -86,6 +94,17 @@ func TestAccResourceAlertmanagerImport(t *testing.T) {
 			},
 		},
 	})
+}
+
+const testAccAlertmanagerAPI = "http://localhost:8080/api/v1/alerts"
+
+func testAccCheckAlertmanagerDestroy(t *testing.T, tenant string) resource.TestCheckFunc {
+	return func(*terraform.State) error {
+		if status, _ := testAccGet(t, tenant, testAccAlertmanagerAPI); status != http.StatusNotFound {
+			return fmt.Errorf("alertmanager config of tenant %s still exists in Mimir: GET returned %d", tenant, status)
+		}
+		return nil
+	}
 }
 
 const testAccResourceAlertmanager = `

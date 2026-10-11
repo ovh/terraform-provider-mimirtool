@@ -6,6 +6,8 @@ package provider
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -37,6 +39,25 @@ provider "mimirtool" {
   tenant_id = %q
 }
 `, tenant) + config
+}
+
+func testAccGet(t *testing.T, tenant, url string) (int, string) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Scope-OrgID", tenant)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.StatusCode, string(body)
 }
 
 func TestConfigureRejectsUnknownValues(t *testing.T) {

@@ -4,8 +4,8 @@
 package provider
 
 import (
+	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 const testAccRulerAPI = "http://localhost:8080/prometheus/config/v1/rules/"
@@ -37,23 +38,43 @@ func testAccRulerRequest(t *testing.T, tenant, method, path, body string) {
 	}
 }
 
-func rulerGet(t *testing.T, tenant, path string) string {
+func testAccRulerNamespaceBody(t *testing.T, tenant, namespace string) string {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, testAccRulerAPI+path, nil)
-	if err != nil {
-		t.Fatal(err)
+	status, body := testAccGet(t, tenant, testAccRulerAPI+namespace)
+	// Any other status means a wrong URL or a Mimir error, never "namespace absent".
+	if status != http.StatusOK {
+		t.Fatalf("GET namespace %q: unexpected status %d: %s", namespace, status, body)
 	}
-	req.Header.Set("X-Scope-OrgID", tenant)
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
+	return body
+}
+
+func testAccCheckRulerNamespaceDestroy(t *testing.T, tenant string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		for _, rs := range s.RootModule().Resources {
+			if rs.Type != "mimirtool_ruler_namespace" {
+				continue
+			}
+			namespace := rs.Primary.Attributes["namespace"]
+			if strings.Contains(testAccRulerNamespaceBody(t, tenant, namespace), "name:") {
+				return fmt.Errorf("ruler namespace %s still exists in Mimir", namespace)
+			}
+		}
+		return nil
 	}
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		t.Fatal(err)
+}
+
+// rulerNamespaceInMimir reads Mimir, not the state, so it sees what other tenants see.
+type rulerNamespaceInMimir struct {
+	t         *testing.T
+	tenant    string
+	namespace string
+	want      bool
+}
+
+func (c rulerNamespaceInMimir) CheckState(_ context.Context, _ statecheck.CheckStateRequest, resp *statecheck.CheckStateResponse) {
+	if got := strings.Contains(testAccRulerNamespaceBody(c.t, c.tenant, c.namespace), "name:"); got != c.want {
+		resp.Error = fmt.Errorf("ruler namespace %s of tenant %s: in Mimir = %t, want %t", c.namespace, c.tenant, got, c.want)
 	}
-	return string(body)
 }
 
 func driftRepairStep(tenant string, preConfig func()) resource.TestStep {
@@ -75,6 +96,7 @@ func TestAccResourceNamespaceDrift(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceNamespaceDrift),
@@ -152,6 +174,7 @@ func TestAccResourceNamespaceDestroyDeletedInMimir(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceNamespaceDrift),
@@ -171,6 +194,7 @@ func TestAccResourceNamespaceCreateRemovesUnconfiguredGroups(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				PreConfig: func() {
@@ -189,6 +213,7 @@ func TestAccResourceNamespaceDriftAllFields(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
 				Config: testAccConfig(tenant, testAccResourceNamespaceAllFields),
@@ -221,8 +246,10 @@ resource "mimirtool_ruler_namespace" "all_fields" {
 func TestAccResourceNamespaceUpgradeFromRelease(t *testing.T) {
 	for _, fixture := range []string{"rules2.yaml", "rules-all-fields.yaml"} {
 		t.Run(fixture, func(t *testing.T) {
-			config := testAccConfig(testAccTenant(), fmt.Sprintf(testAccResourceNamespaceUpgrade, fixture))
+			tenant := testAccTenant()
+			config := testAccConfig(tenant, fmt.Sprintf(testAccResourceNamespaceUpgrade, fixture))
 			resource.ParallelTest(t, resource.TestCase{
+				CheckDestroy: testAccCheckRulerNamespaceDestroy(t, tenant),
 				Steps: []resource.TestStep{
 					{
 						ExternalProviders: map[string]resource.ExternalProvider{
