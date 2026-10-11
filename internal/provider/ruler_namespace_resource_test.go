@@ -432,6 +432,20 @@ func TestAccResourceNamespaceTenantIsolation(t *testing.T) {
 	})
 }
 
+func TestAccResourceNamespaceEmptyName(t *testing.T) {
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccConfig(tenant, fmt.Sprintf(testAccResourceNamespaceNamed, "")),
+				ExpectError: regexp.MustCompile(`Attribute namespace must not be empty`),
+			},
+		},
+	})
+}
+
 func TestAccResourceNamespaceSpecialCharacters(t *testing.T) {
 	tenant := testAccTenant()
 	namespace := "team a/rules?v=1"

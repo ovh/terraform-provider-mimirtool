@@ -72,10 +72,11 @@ func (r *RulerNamespaceResource) Schema(ctx context.Context, _ resource.SchemaRe
 			"namespace": schema.StringAttribute{
 				MarkdownDescription: "The name of the namespace to create in Grafana Mimir.",
 				Required:            true,
-				// Ensures that Terraform destroys and recreates the resource when the namespace changes
-				// as the hash(namespace) will change
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					notEmptyValidator{},
 				},
 			},
 			"config_yaml": schema.StringAttribute{
