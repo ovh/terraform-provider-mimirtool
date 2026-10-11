@@ -135,7 +135,10 @@ func (r *AlertmanagerResource) Read(ctx context.Context, req resource.ReadReques
 	}
 
 	state.ConfigYAML = types.StringValue(alertmanagerConfig)
-	state.TemplatesConfigYAML = typeMapFromMapString(templates)
+	// Mimir returns an empty map when no template is set; keep null to match a config without templates.
+	if len(templates) > 0 || !state.TemplatesConfigYAML.IsNull() {
+		state.TemplatesConfigYAML = typeMapFromMapString(templates)
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }

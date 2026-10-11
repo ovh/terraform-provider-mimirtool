@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 func TestAccResourceAlertmanager(t *testing.T) {
@@ -19,6 +22,34 @@ func TestAccResourceAlertmanager(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						"mimirtool_alertmanager.demo", "templates_config_yaml.default_template", testAccResourceAlertmanagerTemplate),
 				),
+			},
+		},
+	})
+}
+
+func TestAccResourceAlertmanagerNoTemplates(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccResourceAlertmanagerNoTemplates,
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue("mimirtool_alertmanager.demo", tfjsonpath.New("templates_config_yaml"), knownvalue.Null()),
+				},
+			},
+		},
+	})
+}
+
+func TestAccResourceAlertmanagerEmptyTemplates(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccResourceAlertmanagerEmptyTemplates,
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue("mimirtool_alertmanager.demo", tfjsonpath.New("templates_config_yaml"), knownvalue.MapExact(map[string]knownvalue.Check{})),
+				},
 			},
 		},
 	})
@@ -56,12 +87,33 @@ const testAccResourceAlertmanager = `
 provider "mimirtool" {
   address = "http://localhost:8080"
 }
-  
+
 resource "mimirtool_alertmanager" "demo" {
 	config_yaml = file("testdata/example_alertmanager_config.yaml")
 	templates_config_yaml = {
 	  default_template = file("testdata/example_alertmanager_template.tmpl")
 	}
+}
+`
+
+const testAccResourceAlertmanagerNoTemplates = `
+provider "mimirtool" {
+  address = "http://localhost:8080"
+}
+
+resource "mimirtool_alertmanager" "demo" {
+	config_yaml = file("testdata/example_alertmanager_config.yaml")
+}
+`
+
+const testAccResourceAlertmanagerEmptyTemplates = `
+provider "mimirtool" {
+  address = "http://localhost:8080"
+}
+
+resource "mimirtool_alertmanager" "demo" {
+	config_yaml = file("testdata/example_alertmanager_config.yaml")
+	templates_config_yaml = {}
 }
 `
 
