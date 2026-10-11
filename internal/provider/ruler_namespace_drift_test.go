@@ -152,6 +152,23 @@ func TestAccResourceNamespaceDestroyDeletedInMimir(t *testing.T) {
 	})
 }
 
+func TestAccResourceNamespaceCreateRemovesUnconfiguredGroups(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				PreConfig: func() {
+					rulerRequest(t, http.MethodPost, "drift", testAccResourceNamespaceDriftExtraGroup)
+				},
+				Config: testAccResourceNamespaceDriftOneGroup,
+				ConfigStateChecks: []statecheck.StateCheck{
+					SemanticYAMLStateCheck("mimirtool_ruler_namespace.drift", "remote_config_yaml", testAccResourceNamespaceYaml),
+				},
+			},
+		},
+	})
+}
+
 func TestAccResourceNamespaceDriftAllFields(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,

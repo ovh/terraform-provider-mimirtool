@@ -2,6 +2,7 @@
 
 BREAKING CHANGES:
 
+* resource/mimirtool_ruler_namespace: Each apply now removes the rule groups of the namespace that are not in `config_yaml`, on create too. Before, the first apply kept them. If another tool or another resource block manages groups in the same namespace, move them to their own namespace before you upgrade.
 * resource/mimirtool_ruler_namespace: `remote_config_yaml` is read-only. If your configuration sets it, remove it. Before, the apply failed with "Provider produced inconsistent result". Now the plan fails.
 
 BUG FIXES:
