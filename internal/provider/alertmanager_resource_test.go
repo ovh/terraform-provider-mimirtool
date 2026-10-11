@@ -96,6 +96,30 @@ func TestAccResourceAlertmanagerImport(t *testing.T) {
 	})
 }
 
+func TestAccResourceAlertmanagerUpgradeFromRelease(t *testing.T) {
+	for _, release := range testAccReleases {
+		for _, tc := range []struct {
+			name   string
+			config string
+			// Releases up to 1.1.0 plan {} -> null on every run without templates.
+			releaseHasTemplatesBug bool
+		}{
+			{"templates", testAccResourceAlertmanager, false},
+			{"no_templates", testAccResourceAlertmanagerNoTemplates, true},
+		} {
+			t.Run(release+"/"+tc.name, func(t *testing.T) {
+				tenant := testAccTenant()
+				steps := upgradeFromReleaseSteps(release, testAccConfig(tenant, tc.config))
+				steps[0].ExpectNonEmptyPlan = tc.releaseHasTemplatesBug
+				resource.ParallelTest(t, resource.TestCase{
+					CheckDestroy: testAccCheckAlertmanagerDestroy(t, tenant),
+					Steps:        steps,
+				})
+			})
+		}
+	}
+}
+
 const testAccAlertmanagerAPI = "http://localhost:8080/api/v1/alerts"
 
 func testAccCheckAlertmanagerDestroy(t *testing.T, tenant string) resource.TestCheckFunc {

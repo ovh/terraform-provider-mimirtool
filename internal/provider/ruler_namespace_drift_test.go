@@ -243,32 +243,40 @@ resource "mimirtool_ruler_namespace" "all_fields" {
 
 // A state written by the released provider must plan nothing once upgraded,
 // including for fields Mimir drops on write.
-func TestAccResourceNamespaceUpgradeFromRelease(t *testing.T) {
-	for _, fixture := range []string{"rules2.yaml", "rules-all-fields.yaml"} {
-		t.Run(fixture, func(t *testing.T) {
-			tenant := testAccTenant()
-			config := testAccConfig(tenant, fmt.Sprintf(testAccResourceNamespaceUpgrade, fixture))
-			resource.ParallelTest(t, resource.TestCase{
-				CheckDestroy: testAccCheckRulerNamespaceDestroy(t, tenant),
-				Steps: []resource.TestStep{
-					{
-						ExternalProviders: map[string]resource.ExternalProvider{
-							"mimirtool": {Source: "ovh/mimirtool", VersionConstraint: "1.0.0"},
-						},
-						Config: config,
-					},
-					{
-						ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-						Config:                   config,
-						ConfigPlanChecks: resource.ConfigPlanChecks{
-							PreApply: []plancheck.PlanCheck{
-								plancheck.ExpectEmptyPlan(),
-							},
-						},
-					},
+// Users upgrade from any release, not only the last one.
+var testAccReleases = []string{"1.0.0", "1.1.0"}
+
+func upgradeFromReleaseSteps(release, config string) []resource.TestStep {
+	return []resource.TestStep{
+		{
+			ExternalProviders: map[string]resource.ExternalProvider{
+				"mimirtool": {Source: "ovh/mimirtool", VersionConstraint: release},
+			},
+			Config: config,
+		},
+		{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Config:                   config,
+			ConfigPlanChecks: resource.ConfigPlanChecks{
+				PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectEmptyPlan(),
 				},
+			},
+		},
+	}
+}
+
+func TestAccResourceNamespaceUpgradeFromRelease(t *testing.T) {
+	for _, release := range testAccReleases {
+		for _, fixture := range []string{"rules2.yaml", "rules-all-fields.yaml"} {
+			t.Run(release+"/"+fixture, func(t *testing.T) {
+				tenant := testAccTenant()
+				resource.ParallelTest(t, resource.TestCase{
+					CheckDestroy: testAccCheckRulerNamespaceDestroy(t, tenant),
+					Steps:        upgradeFromReleaseSteps(release, testAccConfig(tenant, fmt.Sprintf(testAccResourceNamespaceUpgrade, fixture))),
+				})
 			})
-		})
+		}
 	}
 }
 
