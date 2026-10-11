@@ -7,12 +7,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/dskit/crypto/tls"
 	mimirtool "github.com/grafana/mimir/pkg/mimirtool/client"
 	mimirVersion "github.com/grafana/mimir/pkg/util/version"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -129,7 +132,28 @@ func (p *MimirtoolProvider) Configure(ctx context.Context, req provider.Configur
 		return
 	}
 
-	// Get values from config or environment variables
+	// An unknown value would fall back to the environment and target another address or tenant.
+	names := make([]string, 0, len(req.Config.Schema.GetAttributes()))
+	for name := range req.Config.Schema.GetAttributes() {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		var value attr.Value
+		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root(name), &value)...)
+		if value != nil && value.IsUnknown() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root(name),
+				fmt.Sprintf("Unknown value for %s", name),
+				fmt.Sprintf("The provider cannot create the Mimir client as %s is unknown until apply. "+
+					"Use a value known at plan time, or create the resource it depends on first with -target.", name),
+			)
+		}
+	}
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	clientConfig := MimirClientConfig{
 		Address:                getStringValue(data.Address, "MIMIRTOOL_ADDRESS", "MIMIR_ADDRESS", ""),
 		TenantID:               getStringValue(data.TenantID, "MIMIRTOOL_TENANT_ID", "MIMIR_TENANT_ID", ""),
@@ -151,7 +175,6 @@ func (p *MimirtoolProvider) Configure(ctx context.Context, req provider.Configur
 		"alertmanager_http_prefix": clientConfig.AlertmanagerHTTPPrefix,
 	})
 
-	// Validate required fields
 	if clientConfig.Address == "" {
 		resp.Diagnostics.AddError(
 			"Missing Required Configuration",
@@ -162,7 +185,6 @@ func (p *MimirtoolProvider) Configure(ctx context.Context, req provider.Configur
 		return
 	}
 
-	// Create a new Mimirtool client using the configuration values
 	c, err := getDefaultMimirClient(clientConfig, p.version)
 	if err != nil {
 		resp.Diagnostics.AddError(

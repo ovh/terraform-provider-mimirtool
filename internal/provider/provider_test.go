@@ -4,8 +4,15 @@
 package provider
 
 import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
 )
 
 // testAccProtoV6ProviderFactories is used to instantiate a provider during acceptance testing.
@@ -13,4 +20,35 @@ import (
 // server that the CLI can connect to and interact with.
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"mimirtool": providerserver.NewProtocol6WithError(New("test")()),
+}
+
+func TestConfigureRejectsUnknownValues(t *testing.T) {
+	t.Setenv("MIMIRTOOL_TENANT_ID", "from-env")
+	ctx := context.Background()
+	p := New("test")()
+
+	var schemaResp provider.SchemaResponse
+	p.Schema(ctx, provider.SchemaRequest{}, &schemaResp)
+	objectType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+
+	values := make(map[string]tftypes.Value, len(objectType.AttributeTypes))
+	for name, attrType := range objectType.AttributeTypes {
+		values[name] = tftypes.NewValue(attrType, nil)
+	}
+	values["address"] = tftypes.NewValue(tftypes.String, "http://localhost:8080")
+	values["tenant_id"] = tftypes.NewValue(tftypes.String, tftypes.UnknownValue)
+
+	req := provider.ConfigureRequest{Config: tfsdk.Config{
+		Schema: schemaResp.Schema,
+		Raw:    tftypes.NewValue(objectType, values),
+	}}
+	var resp provider.ConfigureResponse
+	p.Configure(ctx, req, &resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("Configure() accepted an unknown tenant_id and fell back to the environment")
+	}
+	if got := resp.Diagnostics.Errors()[0].Summary(); !strings.Contains(got, "tenant_id") {
+		t.Errorf("error summary = %q, want it to name tenant_id", got)
+	}
 }
