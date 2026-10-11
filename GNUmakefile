@@ -1,4 +1,4 @@
-MIMIR_VERSION ?= 2.16.1
+MIMIR_VERSION ?= 3.2.2
 
 default: testacc
 
@@ -15,7 +15,7 @@ compose-up: compose-down
 	curl -s --retry 12 -f --retry-all-errors --retry-delay 10 http://localhost:8080/ready
 
 compose-down:
-	docker compose -f ./docker-compose.yml stop
+	docker compose -f ./docker-compose.yml down -v
 
 docs:
 	go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs

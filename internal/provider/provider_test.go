@@ -4,8 +4,20 @@
 package provider
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
 
 // testAccProtoV6ProviderFactories is used to instantiate a provider during acceptance testing.
@@ -13,4 +25,93 @@ import (
 // server that the CLI can connect to and interact with.
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"mimirtool": providerserver.NewProtocol6WithError(New("test")()),
+}
+
+// The provider and the API helpers both read the Mimir address from the
+// environment, so the suite can run against any Mimir.
+var testAccAddress = os.Getenv("MIMIRTOOL_ADDRESS")
+
+func testAccPreCheck(t *testing.T) {
+	if testAccAddress == "" {
+		t.Fatal("MIMIRTOOL_ADDRESS must be set for acceptance tests, for example http://localhost:8080")
+	}
+}
+
+// Each test gets its own tenant, so tests share no namespace or Alertmanager
+// config and do not depend on the order they run in.
+func testAccTenant() string {
+	return acctest.RandomWithPrefix("tf-acc")
+}
+
+func testAccConfig(tenant, config string) string {
+	return fmt.Sprintf(`
+provider "mimirtool" {
+  tenant_id = %q
+}
+`, tenant) + config
+}
+
+// Out-of-band changes are made straight through the Mimir API, the way an
+// operator or another tool would, so the provider only discovers them on Read.
+func testAccRequest(t *testing.T, tenant, method, url, body string) {
+	t.Helper()
+	if status, res := testAccDo(t, tenant, method, url, body); status >= 300 {
+		t.Fatalf("%s %s: unexpected status %d: %s", method, url, status, res)
+	}
+}
+
+func testAccGet(t *testing.T, tenant, url string) (int, string) {
+	t.Helper()
+	return testAccDo(t, tenant, http.MethodGet, url, "")
+}
+
+func testAccDo(t *testing.T, tenant, method, url, body string) (int, string) {
+	t.Helper()
+	req, err := http.NewRequest(method, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/yaml")
+	req.Header.Set("X-Scope-OrgID", tenant)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	resBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res.StatusCode, string(resBody)
+}
+
+func TestConfigureRejectsUnknownValues(t *testing.T) {
+	t.Setenv("MIMIRTOOL_TENANT_ID", "from-env")
+	ctx := context.Background()
+	p := New("test")()
+
+	var schemaResp provider.SchemaResponse
+	p.Schema(ctx, provider.SchemaRequest{}, &schemaResp)
+	objectType := schemaResp.Schema.Type().TerraformType(ctx).(tftypes.Object)
+
+	values := make(map[string]tftypes.Value, len(objectType.AttributeTypes))
+	for name, attrType := range objectType.AttributeTypes {
+		values[name] = tftypes.NewValue(attrType, nil)
+	}
+	values["address"] = tftypes.NewValue(tftypes.String, "http://localhost:8080")
+	values["tenant_id"] = tftypes.NewValue(tftypes.String, tftypes.UnknownValue)
+
+	req := provider.ConfigureRequest{Config: tfsdk.Config{
+		Schema: schemaResp.Schema,
+		Raw:    tftypes.NewValue(objectType, values),
+	}}
+	var resp provider.ConfigureResponse
+	p.Configure(ctx, req, &resp)
+
+	if !resp.Diagnostics.HasError() {
+		t.Fatal("Configure() accepted an unknown tenant_id and fell back to the environment")
+	}
+	if got := resp.Diagnostics.Errors()[0].Summary(); !strings.Contains(got, "tenant_id") {
+		t.Errorf("error summary = %q, want it to name tenant_id", got)
+	}
 }

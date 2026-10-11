@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 	"go.yaml.in/yaml/v3"
@@ -59,11 +60,14 @@ func SemanticYAMLStateCheck(resourceName, attr, expected string) statecheck.Stat
 }
 
 func TestAccResourceNamespace(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespace,
+				Config: testAccConfig(tenant, testAccResourceNamespace),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("mimirtool_ruler_namespace.demo", "namespace", "demo"),
 				),
@@ -72,7 +76,7 @@ func TestAccResourceNamespace(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccResourceNamespaceAfterUpdate,
+				Config: testAccConfig(tenant, testAccResourceNamespaceAfterUpdate),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.demo",
@@ -90,16 +94,50 @@ func TestAccResourceNamespace(t *testing.T) {
 				// These fields can't be retrieved from mimir ruler
 				ImportStateVerifyIgnore: []string{"recording_rule_check", "strict_recording_rule_check", "config_yaml"},
 			},
+			{
+				ResourceName:    "mimirtool_ruler_namespace.demo",
+				ImportState:     true,
+				ImportStateKind: resource.ImportBlockWithID,
+				ImportStateId:   "demo",
+				// config_yaml is compared as text, so the first plan after an import
+				// pushes the same groups again. It must never replace the namespace.
+				ExpectNonEmptyPlan: true,
+				ImportPlanChecks: resource.ImportPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("mimirtool_ruler_namespace.demo", plancheck.ResourceActionUpdate),
+					},
+				},
+			},
+		},
+	})
+}
+
+func TestAccResourceNamespaceImportMissing(t *testing.T) {
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:        testAccConfig(tenant, testAccResourceNamespace),
+				ResourceName:  "mimirtool_ruler_namespace.demo",
+				ImportState:   true,
+				ImportStateId: "demo",
+				ExpectError:   regexp.MustCompile(`ruler namespace \(demo\) not found`),
+			},
 		},
 	})
 }
 
 func TestAccResourceNamespaceRename(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceRename,
+				Config: testAccConfig(tenant, testAccResourceNamespaceRename),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.alerts",
@@ -109,13 +147,20 @@ func TestAccResourceNamespaceRename(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccResourceNamespaceRenameAfterUpdate,
+				Config: testAccConfig(tenant, testAccResourceNamespaceRenameAfterUpdate),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("mimirtool_ruler_namespace.alerts", plancheck.ResourceActionDestroyBeforeCreate),
+					},
+				},
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.alerts",
 						tfjsonpath.New("namespace"),
 						knownvalue.StringExact("infra"),
 					),
+					rulerNamespaceInMimir{t: t, tenant: tenant, namespace: "alerts_infra", want: false},
+					rulerNamespaceInMimir{t: t, tenant: tenant, namespace: "infra", want: true},
 				},
 			},
 		},
@@ -123,11 +168,14 @@ func TestAccResourceNamespaceRename(t *testing.T) {
 }
 
 func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceWhitespaceDiff,
+				Config: testAccConfig(tenant, testAccResourceNamespaceWhitespaceDiff),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.demo",
@@ -142,11 +190,14 @@ func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
 }
 
 func TestAccResourceNamespaceQuoting(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceQuoting,
+				Config: testAccConfig(tenant, testAccResourceNamespaceQuoting),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.demo",
@@ -161,23 +212,29 @@ func TestAccResourceNamespaceQuoting(t *testing.T) {
 }
 
 func TestAccResourceNamespaceCheckRules(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccResourceNamespaceFailsCheck,
-				ExpectError: regexp.MustCompile("namespace contains 1 rules that don't match the requirements"),
+				Config:      testAccConfig(tenant, testAccResourceNamespaceFailsCheck),
+				ExpectError: regexp.MustCompile(`(?s)Error creating ruler namespace.*checking recording rules of ruler\s+namespace\s+\(demo\):\s+namespace\s+contains\s+1\s+rules`),
 			},
 		},
 	})
 }
 
 func TestAccResourceNamespaceNoCheck(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceNoCheck,
+				Config: testAccConfig(tenant, testAccResourceNamespaceNoCheck),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.demo",
@@ -197,22 +254,44 @@ func TestAccResourceNamespaceNoCheck(t *testing.T) {
 }
 
 func TestAccResourceNamespaceParseRules(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccResourceNamespaceParseError,
+				Config:      testAccConfig(tenant, testAccResourceNamespaceParseError),
 				ExpectError: regexp.MustCompile("field expression not found"),
 			},
 		},
 	})
 }
 
-const testAccResourceNamespaceRename = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
+func TestAccResourceNamespaceRemoteConfigReadOnly(t *testing.T) {
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccConfig(tenant, testAccResourceNamespaceRemoteConfigSet),
+				ExpectError: regexp.MustCompile("Invalid Configuration for Read-Only Attribute"),
+			},
+		},
+	})
 }
 
+const testAccResourceNamespaceRemoteConfigSet = `
+resource "mimirtool_ruler_namespace" "demo" {
+	namespace = "demo"
+	config_yaml = file("testdata/rules.yaml")
+	remote_config_yaml = file("testdata/rules.yaml")
+  }
+`
+
+const testAccResourceNamespaceRename = `
 resource "mimirtool_ruler_namespace" "alerts" {
 	namespace = "alerts_infra"
 	config_yaml = file("testdata/rules.yaml")
@@ -220,10 +299,6 @@ resource "mimirtool_ruler_namespace" "alerts" {
 `
 
 const testAccResourceNamespaceRenameAfterUpdate = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "alerts" {
 	namespace = "infra"
 	config_yaml = file("testdata/rules.yaml")
@@ -231,10 +306,6 @@ resource "mimirtool_ruler_namespace" "alerts" {
 `
 
 const testAccResourceNamespace = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules.yaml")
@@ -259,10 +330,6 @@ const testAccResourceNamespaceYamlWhitespace = `groups:
 `
 
 const testAccResourceNamespaceAfterUpdate = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules2.yaml")
@@ -282,20 +349,13 @@ const testAccResourceNamespaceYamlAfterUpdate = `groups:
           expr: histogram_quantile(0.99, sum by (le, cluster, job, route) (rate(cortex_request_duration_seconds_bucket[1m])))
 `
 
-const testAccResourceNamespaceWhitespaceDiff = `provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
+const testAccResourceNamespaceWhitespaceDiff = `
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules2_spacing.yaml")
   }
 `
 const testAccResourceNamespaceFailsCheck = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-fails-check.yaml")
@@ -303,10 +363,6 @@ resource "mimirtool_ruler_namespace" "demo" {
 `
 
 const testAccResourceNamespaceNoCheck = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-fails-check.yaml")
@@ -321,20 +377,12 @@ const testAccResourceNamespaceNoCheckExpected = `groups:
           expr: histogram_quantile(0.99, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
 `
 const testAccResourceNamespaceParseError = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-parse-error.yaml")
   }
 `
 const testAccResourceNamespaceQuoting = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-quoting.yaml")
@@ -364,4 +412,68 @@ const testAccResourceNamespaceQuotingExpected = `groups:
                   VALUE = {{ $value }}
                   LABELS = {{ $labels }}
             summary: Host high CPU load (instance {{ $labels.instance }})
+`
+
+func TestAccResourceNamespaceTenantIsolation(t *testing.T) {
+	tenant, other := testAccTenant(), testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccConfig(tenant, testAccResourceNamespace),
+				ConfigStateChecks: []statecheck.StateCheck{
+					rulerNamespaceInMimir{t: t, tenant: tenant, namespace: "demo", want: true},
+					rulerNamespaceInMimir{t: t, tenant: other, namespace: "demo", want: false},
+				},
+			},
+		},
+	})
+}
+
+func TestAccResourceNamespaceEmptyName(t *testing.T) {
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccConfig(tenant, fmt.Sprintf(testAccResourceNamespaceNamed, "")),
+				ExpectError: regexp.MustCompile(`Attribute namespace must not be empty`),
+			},
+		},
+	})
+}
+
+func TestAccResourceNamespaceSpecialCharacters(t *testing.T) {
+	tenant := testAccTenant()
+	namespace := "team a/rules?v=1"
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccConfig(tenant, fmt.Sprintf(testAccResourceNamespaceNamed, namespace)),
+				ConfigStateChecks: []statecheck.StateCheck{
+					SemanticYAMLStateCheck("mimirtool_ruler_namespace.demo", "remote_config_yaml", testAccResourceNamespaceYaml),
+				},
+			},
+			{
+				ResourceName:            "mimirtool_ruler_namespace.demo",
+				ImportState:             true,
+				ImportStateId:           namespace,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"recording_rule_check", "strict_recording_rule_check", "config_yaml"},
+			},
+		},
+	})
+}
+
+const testAccResourceNamespaceNamed = `
+resource "mimirtool_ruler_namespace" "demo" {
+  namespace   = %q
+  config_yaml = file("testdata/rules.yaml")
+}
 `

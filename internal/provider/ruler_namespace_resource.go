@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
-	"strings"
 
 	"github.com/go-kit/log"
 	"github.com/grafana/mimir/pkg/mimirtool/client"
@@ -37,7 +37,7 @@ func NewRulerNamespaceResource() resource.Resource {
 
 // RulerNamespaceResource defines the resource implementation.
 type RulerNamespaceResource struct {
-	client *client.MimirClient
+	client mimirClientInterface
 }
 
 // RulerNamespaceResourceModel describes the resource data model.
@@ -58,7 +58,7 @@ func (r *RulerNamespaceResource) Schema(ctx context.Context, _ resource.SchemaRe
 	tflog.Debug(ctx, "SCHEMA - init")
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
-		MarkdownDescription: "Manages the rule groups of a Grafana Mimir ruler namespace. A configured group deleted or modified in Mimir after an apply is detected on refresh and pushed again by the next apply. [Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)",
+		MarkdownDescription: "Manages the rule groups of a Grafana Mimir ruler namespace. Each apply removes the groups of the namespace that are not in `config_yaml`. A configured group deleted or modified in Mimir after an apply is detected on refresh and pushed again by the next apply. [Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)",
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
@@ -72,10 +72,11 @@ func (r *RulerNamespaceResource) Schema(ctx context.Context, _ resource.SchemaRe
 			"namespace": schema.StringAttribute{
 				MarkdownDescription: "The name of the namespace to create in Grafana Mimir.",
 				Required:            true,
-				// Ensures that Terraform destroys and recreates the resource when the namespace changes
-				// as the hash(namespace) will change
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					notEmptyValidator{},
 				},
 			},
 			"config_yaml": schema.StringAttribute{
@@ -87,7 +88,6 @@ func (r *RulerNamespaceResource) Schema(ctx context.Context, _ resource.SchemaRe
 			},
 			"remote_config_yaml": schema.StringAttribute{
 				MarkdownDescription: "The namespace's groups rules definition stored in Grafana Mimir as YAML.",
-				Optional:            true,
 				Computed:            true,
 			},
 			"strict_recording_rule_check": schema.BoolAttribute{
@@ -117,12 +117,12 @@ func (r *RulerNamespaceResource) Configure(ctx context.Context, req resource.Con
 		"provider_data": req.ProviderData,
 	})
 
-	client, ok := req.ProviderData.(*client.MimirClient)
+	client, ok := req.ProviderData.(mimirClientInterface)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *client.MimirClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected mimirClientInterface, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 
 		return
@@ -134,69 +134,14 @@ func (r *RulerNamespaceResource) Configure(ctx context.Context, req resource.Con
 func (r *RulerNamespaceResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	tflog.Debug(ctx, "CREATE - init")
 	var plan RulerNamespaceResourceModel
-
-	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Extract values from the plan
-	namespace := plan.Namespace.ValueString()
-	ruleGroup := plan.ConfigYAML.ValueString()
-	strictRecordingRuleCheck := plan.StrictRecordingRuleCheck.ValueBool()
-	recordingRuleCheck := plan.RecordingRuleCheck.ValueBool()
-
-	tflog.Debug(ctx, "CREATE - values from plan", map[string]interface{}{
-		"namespace":                namespace,
-		"ruleGroup":                ruleGroup,
-		"strictRecordingRuleCheck": strictRecordingRuleCheck,
-		"recordingRuleCheck":       recordingRuleCheck,
-	})
-
-	// Parse YAML
-	ruleNamespace, err := getRuleNamespaceFromYAML(ctx, ruleGroup)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to parse rule group YAML",
-			err.Error(),
-		)
+	if !r.applyRuleGroups(ctx, &plan, "creating", &resp.Diagnostics) {
 		return
 	}
-
-	if recordingRuleCheck {
-		err = checkRecordingRules(ruleNamespace, strictRecordingRuleCheck)
-		if err != nil {
-			// TODO: add a more explicit error message
-			resp.Diagnostics.AddError(
-				"Failed to check recording rule group",
-				err.Error(),
-			)
-			return
-		}
-	}
-
-	// Create rule groups in Mimir
-	if err := createAllRuleGroups(ctx, r.client, namespace, ruleNamespace.Groups); err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to create rule groups",
-			err.Error(),
-		)
-		return
-	}
-
-	// Set ID
-	plan.ID = types.StringValue(hash(namespace))
-
-	// Always fetch canonical YAML from backend and store in state
-	normalized, ok := fetchAndNormalizeRemoteConfigYAML(ctx, r.client, namespace, "CREATE", &resp.Diagnostics)
-	if !ok {
-		return
-	}
-	plan.RemoteConfigYAML = types.StringValue(normalized)
-
-	// Save the state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -210,7 +155,7 @@ func (r *RulerNamespaceResource) Read(ctx context.Context, req resource.ReadRequ
 
 	namespace := state.Namespace.ValueString()
 
-	normalized, ok := fetchAndNormalizeRemoteConfigYAML(ctx, r.client, namespace, "READ", &resp.Diagnostics)
+	normalized, ok := fetchAndNormalizeRemoteConfigYAML(ctx, r.client, namespace, "reading", &resp.Diagnostics)
 	if !ok {
 		return
 	}
@@ -222,7 +167,7 @@ func (r *RulerNamespaceResource) Read(ctx context.Context, req resource.ReadRequ
 	if !state.ConfigYAML.IsNull() && state.RemoteConfigYAML.ValueString() != "" {
 		drifted, err := namespaceDrifted(state.ConfigYAML.ValueString(), state.RemoteConfigYAML.ValueString(), normalized)
 		if err != nil {
-			resp.Diagnostics.AddError("Error comparing the namespace with Mimir", err.Error())
+			resp.Diagnostics.AddError("Error reading ruler namespace", fmt.Sprintf("comparing ruler namespace (%s) with Mimir: %s", namespace, err))
 			return
 		}
 		if drifted {
@@ -239,53 +184,48 @@ func (r *RulerNamespaceResource) Read(ctx context.Context, req resource.ReadRequ
 func (r *RulerNamespaceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	tflog.Debug(ctx, "DELETE - init")
 	var state RulerNamespaceResourceModel
-
-	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-
-	// Extract namespace from state
-	namespace := state.Namespace.ValueString()
-
-	tflog.Debug(ctx, "DELETE - values from state", map[string]interface{}{
-		"state_config_yaml": state.ConfigYAML.ValueString(),
-	})
-
-	err := r.client.DeleteNamespace(ctx, namespace)
-
-	if err != nil && !strings.Contains(err.Error(), "not found") {
-		resp.Diagnostics.AddError(
-			"Unable to Delete Resource",
-			"An unexpected error occurred while attempting to delete the resource. "+
-				"Please retry the operation or report this issue to the provider developers.\n\n"+
-				"HTTP Error: "+err.Error(),
-		)
-
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// If the logic reaches here, it implicitly succeeded and will remove
-	// the resource from state if there are no other errors.
+	namespace := state.Namespace.ValueString()
+	err := r.client.DeleteNamespace(ctx, namespace)
+	if err != nil && !errors.Is(err, client.ErrResourceNotFound) {
+		resp.Diagnostics.AddError(
+			"Error deleting ruler namespace",
+			fmt.Sprintf("deleting ruler namespace (%s): %s", namespace, err),
+		)
+	}
 }
 
 func (r *RulerNamespaceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	tflog.Debug(ctx, "IMPORT STATE - init")
-	// The import ID is the namespace name
 	namespace := req.ID
 
-	// Create a state with the namespace set
 	var state RulerNamespaceResourceModel
 	state.Namespace = types.StringValue(namespace)
 	state.ID = types.StringValue(hash(namespace))
 
-	// Fetch backend rules to update the state
-	normalized, ok := fetchAndNormalizeRemoteConfigYAML(ctx, r.client, namespace, "IMPORT", &resp.Diagnostics)
+	normalized, ok := fetchAndNormalizeRemoteConfigYAML(ctx, r.client, namespace, "importing", &resp.Diagnostics)
 	if !ok {
 		return
 	}
+	// Mimir answers 200 for a namespace it does not hold, so a typo in the ID would import nothing.
+	groups, err := canonicalGroups(normalized)
+	if err != nil {
+		resp.Diagnostics.AddError("Error importing ruler namespace", fmt.Sprintf("parsing ruler namespace (%s) from Mimir: %s", namespace, err))
+		return
+	}
+	if len(groups) == 0 {
+		resp.Diagnostics.AddError(
+			"Error importing ruler namespace",
+			fmt.Sprintf("ruler namespace (%s) not found in Mimir for the configured tenant", namespace),
+		)
+		return
+	}
 	state.RemoteConfigYAML = types.StringValue(normalized)
-	// state.ConfigYAML = types.StringValue(normalized) // Set config_yaml to the same value for import
 
-	// Set the state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -332,81 +272,66 @@ func normalizeNamespaceYAML(config any) (string, int, int, error) {
 func (r *RulerNamespaceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	tflog.Debug(ctx, "UPDATE - init")
 	var plan RulerNamespaceResourceModel
-	var state RulerNamespaceResourceModel
-
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	namespace := plan.Namespace.ValueString()
-	ruleGroup := plan.ConfigYAML.ValueString()
-	strictRecordingRuleCheck := plan.StrictRecordingRuleCheck.ValueBool()
-	recordingRuleCheck := plan.RecordingRuleCheck.ValueBool()
-
-	ruleNamespace, err := getRuleNamespaceFromYAML(ctx, ruleGroup)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to parse rule group YAML",
-			err.Error(),
-		)
+	if !r.applyRuleGroups(ctx, &plan, "updating", &resp.Diagnostics) {
 		return
 	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+}
 
-	if recordingRuleCheck {
-		err = checkRecordingRules(ruleNamespace, strictRecordingRuleCheck)
-		if err != nil {
-			resp.Diagnostics.AddError(
-				"Failed to check recording rule group",
-				err.Error(),
-			)
-			return
+// applyRuleGroups also runs on Create, as the resource manages the whole namespace.
+func (r *RulerNamespaceResource) applyRuleGroups(ctx context.Context, plan *RulerNamespaceResourceModel, op string, diagnostics *diag.Diagnostics) bool {
+	namespace := plan.Namespace.ValueString()
+
+	ruleNamespace, err := getRuleNamespaceFromYAML(ctx, plan.ConfigYAML.ValueString())
+	if err != nil {
+		diagnostics.AddError(fmt.Sprintf("Error %s ruler namespace", op), fmt.Sprintf("parsing config_yaml of ruler namespace (%s): %s", namespace, err))
+		return false
+	}
+
+	if plan.RecordingRuleCheck.ValueBool() {
+		if err := checkRecordingRules(ruleNamespace, plan.StrictRecordingRuleCheck.ValueBool()); err != nil {
+			diagnostics.AddError(fmt.Sprintf("Error %s ruler namespace", op), fmt.Sprintf("checking recording rules of ruler namespace (%s): %s", namespace, err))
+			return false
 		}
 	}
 
 	if err := syncRuleGroups(ctx, r.client, namespace, ruleNamespace.Groups); err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to update rule groups",
-			err.Error(),
-		)
-		return
+		diagnostics.AddError(fmt.Sprintf("Error %s ruler namespace", op), fmt.Sprintf("syncing rule groups of ruler namespace (%s): %s", namespace, err))
+		return false
 	}
 
-	// Set the ID
 	plan.ID = types.StringValue(hash(namespace))
 
-	// Fetch backend rules
-	normalized, ok := fetchAndNormalizeRemoteConfigYAML(ctx, r.client, namespace, "UPDATE", &resp.Diagnostics)
+	normalized, ok := fetchAndNormalizeRemoteConfigYAML(ctx, r.client, namespace, op, diagnostics)
 	if !ok {
-		return
+		return false
 	}
 	plan.RemoteConfigYAML = types.StringValue(normalized)
-
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	return true
 }
 
-// Create rule groups in Mimir
-func createAllRuleGroups(ctx context.Context, client *client.MimirClient, namespace string, groups []rwrulefmt.RuleGroup) error {
-	for _, group := range groups {
-		if err := client.CreateRuleGroup(ctx, namespace, group); err != nil {
-			return err
-		}
-	}
-	return nil
+// shortcut: upstream ListRules alone does not escape the namespace, drop this once it does.
+func listNamespaceRules(ctx context.Context, c mimirClientInterface, namespace string) (map[string][]rwrulefmt.RuleGroup, error) {
+	return c.ListRules(ctx, url.PathEscape(namespace))
 }
 
 // Never delete the namespace first: the ruler would hold none of its groups
 // until the rewrite finished, and only part of them if it failed midway.
-func syncRuleGroups(ctx context.Context, c *client.MimirClient, namespace string, groups []rwrulefmt.RuleGroup) error {
-	remote, err := c.ListRules(ctx, namespace)
+func syncRuleGroups(ctx context.Context, c mimirClientInterface, namespace string, groups []rwrulefmt.RuleGroup) error {
+	remote, err := listNamespaceRules(ctx, c, namespace)
 	if err != nil && !errors.Is(err, client.ErrResourceNotFound) {
 		return err
 	}
 
-	if err := createAllRuleGroups(ctx, c, namespace, groups); err != nil {
-		return err
+	for _, group := range groups {
+		if err := c.CreateRuleGroup(ctx, namespace, group); err != nil {
+			return err
+		}
 	}
 
 	configured := make(map[string]struct{}, len(groups))
@@ -476,33 +401,30 @@ func canonicalGroups(configYAML string) (map[string]any, error) {
 	return groups, nil
 }
 
-// Helper function for fetching and normalizing the remote config YAML
 func fetchAndNormalizeRemoteConfigYAML(
 	ctx context.Context,
-	client *client.MimirClient,
+	client mimirClientInterface,
 	namespace string,
 	op string,
 	diagnostics *diag.Diagnostics,
 ) (string, bool) {
 	normalized, err := readRemoteConfigYAML(ctx, client, namespace, op)
 	if err != nil {
-		diagnostics.AddError(fmt.Sprintf("Error Reading Mimir RuleGroup after %s", op), err.Error())
+		diagnostics.AddError(fmt.Sprintf("Error %s ruler namespace", op), fmt.Sprintf("reading ruler namespace (%s) from Mimir: %s", namespace, err))
 		return "", false
 	}
 	return normalized, true
 }
 
-func readRemoteConfigYAML(ctx context.Context, client *client.MimirClient, namespace string, op string) (string, error) {
-	remoteNamespaceRuleGroup, err := client.ListRules(ctx, namespace)
+func readRemoteConfigYAML(ctx context.Context, client mimirClientInterface, namespace string, op string) (string, error) {
+	remoteNamespaceRuleGroup, err := listNamespaceRules(ctx, client, namespace)
 	if err != nil {
-		return "", fmt.Errorf("could not read Mimir rulegroup for namespace %q: %w", namespace, err)
+		return "", fmt.Errorf("listing rule groups: %w", err)
 	}
 
 	tflog.Trace(ctx, op+": raw value for remoteNamespaceRuleGroup", map[string]interface{}{"remoteNamespaceRuleGroup": remoteNamespaceRuleGroup})
 
-	// Mimir top level key is the namespace name while in the YAML definition the top level key is groups
-	// Let's rename the key to be able to have a nice difference
-	// TODO: might not be needed anymore since we have introduced the remote_config_yaml attribute
+	// Mimir keys the groups by namespace, the config_yaml format by "groups".
 	remoteNamespaceRuleGroup["groups"] = remoteNamespaceRuleGroup[namespace]
 	delete(remoteNamespaceRuleGroup, namespace)
 

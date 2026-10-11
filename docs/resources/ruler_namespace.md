@@ -3,12 +3,12 @@
 page_title: "mimirtool_ruler_namespace Resource - terraform-provider-mimirtool"
 subcategory: ""
 description: |-
-  Manages the rule groups of a Grafana Mimir ruler namespace. A configured group deleted or modified in Mimir after an apply is detected on refresh and pushed again by the next apply. Official documentation https://grafana.com/docs/mimir/latest/references/http-api/#ruler
+  Manages the rule groups of a Grafana Mimir ruler namespace. Each apply removes the groups of the namespace that are not in config_yaml. A configured group deleted or modified in Mimir after an apply is detected on refresh and pushed again by the next apply. Official documentation https://grafana.com/docs/mimir/latest/references/http-api/#ruler
 ---
 
 # mimirtool_ruler_namespace (Resource)
 
-Manages the rule groups of a Grafana Mimir ruler namespace. A configured group deleted or modified in Mimir after an apply is detected on refresh and pushed again by the next apply. [Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)
+Manages the rule groups of a Grafana Mimir ruler namespace. Each apply removes the groups of the namespace that are not in `config_yaml`. A configured group deleted or modified in Mimir after an apply is detected on refresh and pushed again by the next apply. [Official documentation](https://grafana.com/docs/mimir/latest/references/http-api/#ruler)
 
 ## Example Usage
 
@@ -40,12 +40,12 @@ EOT
 ### Optional
 
 - `recording_rule_check` (Boolean) Controls whether to run recording rule checks entirely.
-- `remote_config_yaml` (String) The namespace's groups rules definition stored in Grafana Mimir as YAML.
 - `strict_recording_rule_check` (Boolean) Fails rules checks that do not match best practices exactly. See: https://prometheus.io/docs/practices/rules/
 
 ### Read-Only
 
 - `id` (String) hash
+- `remote_config_yaml` (String) The namespace's groups rules definition stored in Grafana Mimir as YAML.
 
 ## Import
 
