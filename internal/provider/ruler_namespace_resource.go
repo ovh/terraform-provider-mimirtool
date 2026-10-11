@@ -36,7 +36,7 @@ func NewRulerNamespaceResource() resource.Resource {
 
 // RulerNamespaceResource defines the resource implementation.
 type RulerNamespaceResource struct {
-	client *client.MimirClient
+	client mimirClientInterface
 }
 
 // RulerNamespaceResourceModel describes the resource data model.
@@ -115,12 +115,12 @@ func (r *RulerNamespaceResource) Configure(ctx context.Context, req resource.Con
 		"provider_data": req.ProviderData,
 	})
 
-	client, ok := req.ProviderData.(*client.MimirClient)
+	client, ok := req.ProviderData.(mimirClientInterface)
 
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *client.MimirClient, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected mimirClientInterface, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 
 		return
@@ -305,26 +305,18 @@ func (r *RulerNamespaceResource) applyRuleGroups(ctx context.Context, plan *Rule
 	return true
 }
 
-// Create rule groups in Mimir
-func createAllRuleGroups(ctx context.Context, client *client.MimirClient, namespace string, groups []rwrulefmt.RuleGroup) error {
-	for _, group := range groups {
-		if err := client.CreateRuleGroup(ctx, namespace, group); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Never delete the namespace first: the ruler would hold none of its groups
 // until the rewrite finished, and only part of them if it failed midway.
-func syncRuleGroups(ctx context.Context, c *client.MimirClient, namespace string, groups []rwrulefmt.RuleGroup) error {
+func syncRuleGroups(ctx context.Context, c mimirClientInterface, namespace string, groups []rwrulefmt.RuleGroup) error {
 	remote, err := c.ListRules(ctx, namespace)
 	if err != nil && !errors.Is(err, client.ErrResourceNotFound) {
 		return err
 	}
 
-	if err := createAllRuleGroups(ctx, c, namespace, groups); err != nil {
-		return err
+	for _, group := range groups {
+		if err := c.CreateRuleGroup(ctx, namespace, group); err != nil {
+			return err
+		}
 	}
 
 	configured := make(map[string]struct{}, len(groups))
@@ -394,10 +386,9 @@ func canonicalGroups(configYAML string) (map[string]any, error) {
 	return groups, nil
 }
 
-// Helper function for fetching and normalizing the remote config YAML
 func fetchAndNormalizeRemoteConfigYAML(
 	ctx context.Context,
-	client *client.MimirClient,
+	client mimirClientInterface,
 	namespace string,
 	op string,
 	diagnostics *diag.Diagnostics,
@@ -410,7 +401,7 @@ func fetchAndNormalizeRemoteConfigYAML(
 	return normalized, true
 }
 
-func readRemoteConfigYAML(ctx context.Context, client *client.MimirClient, namespace string, op string) (string, error) {
+func readRemoteConfigYAML(ctx context.Context, client mimirClientInterface, namespace string, op string) (string, error) {
 	remoteNamespaceRuleGroup, err := client.ListRules(ctx, namespace)
 	if err != nil {
 		return "", fmt.Errorf("could not read Mimir rulegroup for namespace %q: %w", namespace, err)

@@ -163,9 +163,7 @@ func (p *MimirtoolProvider) Configure(ctx context.Context, req provider.Configur
 	}
 
 	// Create a new Mimirtool client using the configuration values
-	var err error
-	c := &myClient{}
-	c.cli, err = getDefaultMimirClient(clientConfig, p.version)
+	c, err := getDefaultMimirClient(clientConfig, p.version)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Mimirtool API Client",
@@ -176,8 +174,8 @@ func (p *MimirtoolProvider) Configure(ctx context.Context, req provider.Configur
 		return
 	}
 
-	resp.DataSourceData = c.cli
-	resp.ResourceData = c.cli
+	resp.DataSourceData = c
+	resp.ResourceData = c
 }
 
 func getDefaultMimirClient(cfg MimirClientConfig, version string) (mimirClientInterface, error) {
