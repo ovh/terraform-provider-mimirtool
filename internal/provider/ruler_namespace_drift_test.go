@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-const testAccRulerAPI = "http://localhost:8080/prometheus/config/v1/rules/"
+var testAccRulerAPI = testAccAddress + "/prometheus/config/v1/rules/"
 
 func testAccRulerRequest(t *testing.T, tenant, method, path, body string) {
 	t.Helper()
@@ -80,6 +80,7 @@ func driftRepairStep(tenant string, preConfig func()) resource.TestStep {
 func TestAccResourceNamespaceDrift(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -158,6 +159,7 @@ rules:
 func TestAccResourceNamespaceDestroyDeletedInMimir(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -178,6 +180,7 @@ func TestAccResourceNamespaceDestroyDeletedInMimir(t *testing.T) {
 func TestAccResourceNamespaceCreateRemovesUnconfiguredGroups(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -197,6 +200,7 @@ func TestAccResourceNamespaceCreateRemovesUnconfiguredGroups(t *testing.T) {
 func TestAccResourceNamespaceDriftAllFields(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -257,6 +261,7 @@ func TestAccResourceNamespaceUpgradeFromRelease(t *testing.T) {
 			t.Run(release+"/"+fixture, func(t *testing.T) {
 				tenant := testAccTenant()
 				resource.ParallelTest(t, resource.TestCase{
+					PreCheck:     func() { testAccPreCheck(t) },
 					CheckDestroy: testAccCheckRulerNamespaceDestroy(t, tenant),
 					Steps:        upgradeFromReleaseSteps(release, testAccConfig(tenant, fmt.Sprintf(testAccResourceNamespaceUpgrade, fixture))),
 				})

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -26,6 +27,16 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 	"mimirtool": providerserver.NewProtocol6WithError(New("test")()),
 }
 
+// The provider and the API helpers both read the Mimir address from the
+// environment, so the suite can run against any Mimir.
+var testAccAddress = os.Getenv("MIMIRTOOL_ADDRESS")
+
+func testAccPreCheck(t *testing.T) {
+	if testAccAddress == "" {
+		t.Fatal("MIMIRTOOL_ADDRESS must be set for acceptance tests, for example http://localhost:8080")
+	}
+}
+
 // Each test gets its own tenant, so tests share no namespace or Alertmanager
 // config and do not depend on the order they run in.
 func testAccTenant() string {
@@ -35,7 +46,6 @@ func testAccTenant() string {
 func testAccConfig(tenant, config string) string {
 	return fmt.Sprintf(`
 provider "mimirtool" {
-  address   = "http://localhost:8080"
   tenant_id = %q
 }
 `, tenant) + config

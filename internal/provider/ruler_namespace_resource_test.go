@@ -62,6 +62,7 @@ func SemanticYAMLStateCheck(resourceName, attr, expected string) statecheck.Stat
 func TestAccResourceNamespace(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -100,6 +101,7 @@ func TestAccResourceNamespace(t *testing.T) {
 func TestAccResourceNamespaceRename(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -137,6 +139,7 @@ func TestAccResourceNamespaceRename(t *testing.T) {
 func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -158,6 +161,7 @@ func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
 func TestAccResourceNamespaceQuoting(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -179,6 +183,7 @@ func TestAccResourceNamespaceQuoting(t *testing.T) {
 func TestAccResourceNamespaceCheckRules(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -193,6 +198,7 @@ func TestAccResourceNamespaceCheckRules(t *testing.T) {
 func TestAccResourceNamespaceNoCheck(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -219,6 +225,7 @@ func TestAccResourceNamespaceNoCheck(t *testing.T) {
 func TestAccResourceNamespaceParseRules(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -233,6 +240,7 @@ func TestAccResourceNamespaceParseRules(t *testing.T) {
 func TestAccResourceNamespaceRemoteConfigReadOnly(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -378,6 +386,7 @@ const testAccResourceNamespaceQuotingExpected = `groups:
 func TestAccResourceNamespaceTenantIsolation(t *testing.T) {
 	tenant, other := testAccTenant(), testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{

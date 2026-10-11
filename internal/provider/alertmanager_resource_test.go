@@ -17,6 +17,7 @@ import (
 func TestAccResourceAlertmanager(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -37,6 +38,7 @@ func TestAccResourceAlertmanagerLifecycle(t *testing.T) {
 	tenant := testAccTenant()
 	resourceName := "mimirtool_alertmanager.demo"
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -87,6 +89,7 @@ func TestAccResourceAlertmanagerLifecycle(t *testing.T) {
 func TestAccResourceAlertmanagerNoTemplates(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -103,6 +106,7 @@ func TestAccResourceAlertmanagerNoTemplates(t *testing.T) {
 func TestAccResourceAlertmanagerEmptyTemplates(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -119,6 +123,7 @@ func TestAccResourceAlertmanagerEmptyTemplates(t *testing.T) {
 func TestAccResourceAlertmanagerParseError(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -133,6 +138,7 @@ func TestAccResourceAlertmanagerParseError(t *testing.T) {
 func TestAccResourceAlertmanagerImport(t *testing.T) {
 	tenant := testAccTenant()
 	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
 		Steps: []resource.TestStep{
@@ -164,6 +170,7 @@ func TestAccResourceAlertmanagerUpgradeFromRelease(t *testing.T) {
 				steps := upgradeFromReleaseSteps(release, testAccConfig(tenant, tc.config))
 				steps[0].ExpectNonEmptyPlan = tc.releaseHasTemplatesBug
 				resource.ParallelTest(t, resource.TestCase{
+					PreCheck:     func() { testAccPreCheck(t) },
 					CheckDestroy: testAccCheckAlertmanagerDestroy(t, tenant),
 					Steps:        steps,
 				})
@@ -192,7 +199,7 @@ const testAccAlertmanagerOutOfBand = `alertmanager_config: |
     - name: out-of-band
 `
 
-const testAccAlertmanagerAPI = "http://localhost:8080/api/v1/alerts"
+var testAccAlertmanagerAPI = testAccAddress + "/api/v1/alerts"
 
 func testAccCheckAlertmanagerDestroy(t *testing.T, tenant string) resource.TestCheckFunc {
 	return func(*terraform.State) error {
