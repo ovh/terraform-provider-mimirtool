@@ -208,6 +208,30 @@ func TestAccResourceNamespaceParseRules(t *testing.T) {
 	})
 }
 
+func TestAccResourceNamespaceRemoteConfigReadOnly(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      testAccResourceNamespaceRemoteConfigSet,
+				ExpectError: regexp.MustCompile("Invalid Configuration for Read-Only Attribute"),
+			},
+		},
+	})
+}
+
+const testAccResourceNamespaceRemoteConfigSet = `
+provider "mimirtool" {
+  address = "http://localhost:8080"
+}
+
+resource "mimirtool_ruler_namespace" "demo" {
+	namespace = "demo"
+	config_yaml = file("testdata/rules.yaml")
+	remote_config_yaml = file("testdata/rules.yaml")
+  }
+`
+
 const testAccResourceNamespaceRename = `
 provider "mimirtool" {
   address = "http://localhost:8080"

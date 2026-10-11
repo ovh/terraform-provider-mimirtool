@@ -87,7 +87,6 @@ func (r *RulerNamespaceResource) Schema(ctx context.Context, _ resource.SchemaRe
 			},
 			"remote_config_yaml": schema.StringAttribute{
 				MarkdownDescription: "The namespace's groups rules definition stored in Grafana Mimir as YAML.",
-				Optional:            true,
 				Computed:            true,
 			},
 			"strict_recording_rule_check": schema.BoolAttribute{

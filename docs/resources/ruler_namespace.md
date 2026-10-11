@@ -40,12 +40,12 @@ EOT
 ### Optional
 
 - `recording_rule_check` (Boolean) Controls whether to run recording rule checks entirely.
-- `remote_config_yaml` (String) The namespace's groups rules definition stored in Grafana Mimir as YAML.
 - `strict_recording_rule_check` (Boolean) Fails rules checks that do not match best practices exactly. See: https://prometheus.io/docs/practices/rules/
 
 ### Read-Only
 
 - `id` (String) hash
+- `remote_config_yaml` (String) The namespace's groups rules definition stored in Grafana Mimir as YAML.
 
 ## Import
 
