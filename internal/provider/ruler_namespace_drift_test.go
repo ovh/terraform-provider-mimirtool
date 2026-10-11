@@ -18,24 +18,9 @@ import (
 
 const testAccRulerAPI = "http://localhost:8080/prometheus/config/v1/rules/"
 
-// Out-of-band changes are made straight through the ruler API, the way an
-// operator or another tool would, so the provider only discovers them on Read.
 func testAccRulerRequest(t *testing.T, tenant, method, path, body string) {
 	t.Helper()
-	req, err := http.NewRequest(method, testAccRulerAPI+path, strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	req.Header.Set("Content-Type", "application/yaml")
-	req.Header.Set("X-Scope-OrgID", tenant)
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode >= 300 {
-		t.Fatalf("%s %s: unexpected status %d", method, path, res.StatusCode)
-	}
+	testAccRequest(t, tenant, method, testAccRulerAPI+path, body)
 }
 
 func testAccRulerNamespaceBody(t *testing.T, tenant, namespace string) string {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
@@ -27,6 +28,57 @@ func TestAccResourceAlertmanager(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						"mimirtool_alertmanager.demo", "templates_config_yaml.default_template", testAccResourceAlertmanagerTemplate),
 				),
+			},
+		},
+	})
+}
+
+func TestAccResourceAlertmanagerLifecycle(t *testing.T) {
+	tenant := testAccTenant()
+	resourceName := "mimirtool_alertmanager.demo"
+	resource.ParallelTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckAlertmanagerDestroy(t, tenant),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccConfig(tenant, testAccResourceAlertmanager),
+			},
+			{
+				Config: testAccConfig(tenant, testAccResourceAlertmanagerUpdated),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("config_yaml"), knownvalue.StringExact(testAccResourceAlertmanagerUpdatedYaml)),
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("templates_config_yaml"), knownvalue.Null()),
+				},
+			},
+			{
+				PreConfig: func() {
+					testAccRequest(t, tenant, http.MethodPost, testAccAlertmanagerAPI, testAccAlertmanagerOutOfBand)
+				},
+				Config: testAccConfig(tenant, testAccResourceAlertmanagerUpdated),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionUpdate),
+					},
+				},
+				ConfigStateChecks: []statecheck.StateCheck{
+					statecheck.ExpectKnownValue(resourceName, tfjsonpath.New("config_yaml"), knownvalue.StringExact(testAccResourceAlertmanagerUpdatedYaml)),
+				},
+			},
+			{
+				PreConfig: func() {
+					testAccRequest(t, tenant, http.MethodDelete, testAccAlertmanagerAPI, "")
+				},
+				Config: testAccConfig(tenant, testAccResourceAlertmanagerUpdated),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(resourceName, plancheck.ResourceActionCreate),
+					},
+				},
 			},
 		},
 	})
@@ -119,6 +171,26 @@ func TestAccResourceAlertmanagerUpgradeFromRelease(t *testing.T) {
 		}
 	}
 }
+
+const testAccResourceAlertmanagerUpdated = `
+resource "mimirtool_alertmanager" "demo" {
+  config_yaml = <<YAML
+` + testAccResourceAlertmanagerUpdatedYaml + `YAML
+}
+`
+
+const testAccResourceAlertmanagerUpdatedYaml = `route:
+  receiver: updated
+receivers:
+  - name: updated
+`
+
+const testAccAlertmanagerOutOfBand = `alertmanager_config: |
+  route:
+    receiver: out-of-band
+  receivers:
+    - name: out-of-band
+`
 
 const testAccAlertmanagerAPI = "http://localhost:8080/api/v1/alerts"
 

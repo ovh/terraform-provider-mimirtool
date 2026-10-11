@@ -41,23 +41,38 @@ provider "mimirtool" {
 `, tenant) + config
 }
 
+// Out-of-band changes are made straight through the Mimir API, the way an
+// operator or another tool would, so the provider only discovers them on Read.
+func testAccRequest(t *testing.T, tenant, method, url, body string) {
+	t.Helper()
+	if status, res := testAccDo(t, tenant, method, url, body); status >= 300 {
+		t.Fatalf("%s %s: unexpected status %d: %s", method, url, status, res)
+	}
+}
+
 func testAccGet(t *testing.T, tenant, url string) (int, string) {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	return testAccDo(t, tenant, http.MethodGet, url, "")
+}
+
+func testAccDo(t *testing.T, tenant, method, url, body string) (int, string) {
+	t.Helper()
+	req, err := http.NewRequest(method, url, strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
+	req.Header.Set("Content-Type", "application/yaml")
 	req.Header.Set("X-Scope-OrgID", tenant)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
+	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return res.StatusCode, string(body)
+	return res.StatusCode, string(resBody)
 }
 
 func TestConfigureRejectsUnknownValues(t *testing.T) {
