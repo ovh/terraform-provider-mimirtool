@@ -6,6 +6,8 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/url"
 	"reflect"
 	"sort"
 	"testing"
@@ -25,6 +27,12 @@ func (f *fakeRulerClient) ListRules(_ context.Context, namespace string) (map[st
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
+	// The namespace is one path segment, so it must arrive escaped.
+	decoded, err := url.PathUnescape(namespace)
+	if err != nil || url.PathEscape(decoded) != namespace {
+		return nil, fmt.Errorf("namespace %q is not escaped", namespace)
+	}
+	namespace = decoded
 	// Mimir answers a namespace it does not hold with 200 and {}, not 404.
 	groups, ok := f.groups[namespace]
 	if !ok {
@@ -81,6 +89,7 @@ func groupNames(groups []rwrulefmt.RuleGroup) []string {
 func TestSyncRuleGroups(t *testing.T) {
 	tests := []struct {
 		name        string
+		namespace   string
 		remote      map[string][]rwrulefmt.RuleGroup
 		configured  []string
 		failOn      string
@@ -111,6 +120,14 @@ func TestSyncRuleGroups(t *testing.T) {
 			wantGroups: []string{"a", "old"},
 		},
 		{
+			name:        "namespace that needs escaping",
+			namespace:   "team a/rules?v=1",
+			remote:      map[string][]rwrulefmt.RuleGroup{"team a/rules?v=1": ruleGroups("a", "extra")},
+			configured:  []string{"a"},
+			wantGroups:  []string{"a"},
+			wantDeleted: []string{"extra"},
+		},
+		{
 			name:       "nothing created when the list fails",
 			remote:     map[string][]rwrulefmt.RuleGroup{"ns": ruleGroups("old")},
 			configured: []string{"a"},
@@ -122,11 +139,15 @@ func TestSyncRuleGroups(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := &fakeRulerClient{groups: tt.remote, failOn: tt.failOn, listErr: tt.listErr}
-			err := syncRuleGroups(context.Background(), fake, "ns", ruleGroups(tt.configured...))
+			namespace := tt.namespace
+			if namespace == "" {
+				namespace = "ns"
+			}
+			err := syncRuleGroups(context.Background(), fake, namespace, ruleGroups(tt.configured...))
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("syncRuleGroups() error = %v, wantErr %v", err, tt.wantErr)
 			}
-			if got := groupNames(fake.groups["ns"]); !reflect.DeepEqual(got, tt.wantGroups) {
+			if got := groupNames(fake.groups[namespace]); !reflect.DeepEqual(got, tt.wantGroups) {
 				t.Errorf("groups = %v, want %v", got, tt.wantGroups)
 			}
 			if !reflect.DeepEqual(fake.deleted, tt.wantDeleted) {

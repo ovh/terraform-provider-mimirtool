@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -25,7 +26,7 @@ func testAccRulerRequest(t *testing.T, tenant, method, path, body string) {
 
 func testAccRulerNamespaceBody(t *testing.T, tenant, namespace string) string {
 	t.Helper()
-	status, body := testAccGet(t, tenant, testAccRulerAPI+namespace)
+	status, body := testAccGet(t, tenant, testAccRulerAPI+url.PathEscape(namespace))
 	// Any other status means a wrong URL or a Mimir error, never "namespace absent".
 	if status != http.StatusOK {
 		t.Fatalf("GET namespace %q: unexpected status %d: %s", namespace, status, body)

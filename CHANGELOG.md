@@ -10,6 +10,7 @@ BUG FIXES:
 
 * resource/mimirtool_alertmanager: A configuration without `templates_config_yaml` no longer shows an update on every plan.
 * resource/mimirtool_ruler_namespace: Delete matches the not-found error by type, not by error text, and its error names the namespace.
+* resource/mimirtool_ruler_namespace: A namespace name with a space, `/`, `?` or another character that URLs escape now works. Before, the apply wrote the rule groups to Mimir and then failed to read them back.
 * resource/mimirtool_ruler_namespace: Import fails when the namespace does not exist in Mimir for the configured tenant. Before, the import succeeded with no rule group.
 
 ## 0.1.0 (November 15, 2022)

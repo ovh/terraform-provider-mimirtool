@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 
 	"github.com/go-kit/log"
@@ -313,10 +314,15 @@ func (r *RulerNamespaceResource) applyRuleGroups(ctx context.Context, plan *Rule
 	return true
 }
 
+// shortcut: upstream ListRules alone does not escape the namespace, drop this once it does.
+func listNamespaceRules(ctx context.Context, c mimirClientInterface, namespace string) (map[string][]rwrulefmt.RuleGroup, error) {
+	return c.ListRules(ctx, url.PathEscape(namespace))
+}
+
 // Never delete the namespace first: the ruler would hold none of its groups
 // until the rewrite finished, and only part of them if it failed midway.
 func syncRuleGroups(ctx context.Context, c mimirClientInterface, namespace string, groups []rwrulefmt.RuleGroup) error {
-	remote, err := c.ListRules(ctx, namespace)
+	remote, err := listNamespaceRules(ctx, c, namespace)
 	if err != nil && !errors.Is(err, client.ErrResourceNotFound) {
 		return err
 	}
@@ -410,7 +416,7 @@ func fetchAndNormalizeRemoteConfigYAML(
 }
 
 func readRemoteConfigYAML(ctx context.Context, client mimirClientInterface, namespace string, op string) (string, error) {
-	remoteNamespaceRuleGroup, err := client.ListRules(ctx, namespace)
+	remoteNamespaceRuleGroup, err := listNamespaceRules(ctx, client, namespace)
 	if err != nil {
 		return "", fmt.Errorf("could not read Mimir rulegroup for namespace %q: %w", namespace, err)
 	}

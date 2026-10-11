@@ -431,3 +431,35 @@ func TestAccResourceNamespaceTenantIsolation(t *testing.T) {
 		},
 	})
 }
+
+func TestAccResourceNamespaceSpecialCharacters(t *testing.T) {
+	tenant := testAccTenant()
+	namespace := "team a/rules?v=1"
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccConfig(tenant, fmt.Sprintf(testAccResourceNamespaceNamed, namespace)),
+				ConfigStateChecks: []statecheck.StateCheck{
+					SemanticYAMLStateCheck("mimirtool_ruler_namespace.demo", "remote_config_yaml", testAccResourceNamespaceYaml),
+				},
+			},
+			{
+				ResourceName:            "mimirtool_ruler_namespace.demo",
+				ImportState:             true,
+				ImportStateId:           namespace,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"recording_rule_check", "strict_recording_rule_check", "config_yaml"},
+			},
+		},
+	})
+}
+
+const testAccResourceNamespaceNamed = `
+resource "mimirtool_ruler_namespace" "demo" {
+  namespace   = %q
+  config_yaml = file("testdata/rules.yaml")
+}
+`
