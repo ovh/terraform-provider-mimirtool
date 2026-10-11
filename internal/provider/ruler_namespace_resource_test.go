@@ -94,6 +94,37 @@ func TestAccResourceNamespace(t *testing.T) {
 				// These fields can't be retrieved from mimir ruler
 				ImportStateVerifyIgnore: []string{"recording_rule_check", "strict_recording_rule_check", "config_yaml"},
 			},
+			{
+				ResourceName:    "mimirtool_ruler_namespace.demo",
+				ImportState:     true,
+				ImportStateKind: resource.ImportBlockWithID,
+				ImportStateId:   "demo",
+				// config_yaml is compared as text, so the first plan after an import
+				// pushes the same groups again. It must never replace the namespace.
+				ExpectNonEmptyPlan: true,
+				ImportPlanChecks: resource.ImportPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("mimirtool_ruler_namespace.demo", plancheck.ResourceActionUpdate),
+					},
+				},
+			},
+		},
+	})
+}
+
+func TestAccResourceNamespaceImportMissing(t *testing.T) {
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:        testAccConfig(tenant, testAccResourceNamespace),
+				ResourceName:  "mimirtool_ruler_namespace.demo",
+				ImportState:   true,
+				ImportStateId: "demo",
+				ExpectError:   regexp.MustCompile(`ruler namespace "demo" not found`),
+			},
 		},
 	})
 }

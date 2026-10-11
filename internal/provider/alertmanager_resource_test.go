@@ -150,6 +150,11 @@ func TestAccResourceAlertmanagerImport(t *testing.T) {
 				ImportState:       true,
 				ImportStateVerify: true,
 			},
+			{
+				ResourceName:    "mimirtool_alertmanager.demo",
+				ImportState:     true,
+				ImportStateKind: resource.ImportBlockWithID,
+			},
 		},
 	})
 }
@@ -177,6 +182,23 @@ func TestAccResourceAlertmanagerUpgradeFromRelease(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestAccResourceAlertmanagerImportMissing(t *testing.T) {
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:        testAccConfig(tenant, testAccResourceAlertmanager),
+				ResourceName:  "mimirtool_alertmanager.demo",
+				ImportState:   true,
+				ImportStateId: "alertmanager",
+				ExpectError:   regexp.MustCompile(`Cannot import non-existent remote object`),
+			},
+		},
+	})
 }
 
 const testAccResourceAlertmanagerUpdated = `

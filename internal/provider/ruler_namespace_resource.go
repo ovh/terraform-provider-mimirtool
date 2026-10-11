@@ -199,23 +199,31 @@ func (r *RulerNamespaceResource) Delete(ctx context.Context, req resource.Delete
 
 func (r *RulerNamespaceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	tflog.Debug(ctx, "IMPORT STATE - init")
-	// The import ID is the namespace name
 	namespace := req.ID
 
-	// Create a state with the namespace set
 	var state RulerNamespaceResourceModel
 	state.Namespace = types.StringValue(namespace)
 	state.ID = types.StringValue(hash(namespace))
 
-	// Fetch backend rules to update the state
 	normalized, ok := fetchAndNormalizeRemoteConfigYAML(ctx, r.client, namespace, "IMPORT", &resp.Diagnostics)
 	if !ok {
 		return
 	}
+	// Mimir answers 200 for a namespace it does not hold, so a typo in the ID would import nothing.
+	groups, err := canonicalGroups(normalized)
+	if err != nil {
+		resp.Diagnostics.AddError("Error importing ruler namespace", err.Error())
+		return
+	}
+	if len(groups) == 0 {
+		resp.Diagnostics.AddError(
+			"Error importing ruler namespace",
+			fmt.Sprintf("ruler namespace %q not found in Mimir for the configured tenant", namespace),
+		)
+		return
+	}
 	state.RemoteConfigYAML = types.StringValue(normalized)
-	// state.ConfigYAML = types.StringValue(normalized) // Set config_yaml to the same value for import
 
-	// Set the state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
