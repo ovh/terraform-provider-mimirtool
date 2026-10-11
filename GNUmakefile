@@ -1,4 +1,4 @@
-MIMIR_VERSION ?= 2.16.1
+MIMIR_VERSION ?= 3.2.2
 
 default: testacc
 
