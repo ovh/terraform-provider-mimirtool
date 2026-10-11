@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-go/tftypes"
+	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 )
 
 // testAccProtoV6ProviderFactories is used to instantiate a provider during acceptance testing.
@@ -20,6 +22,21 @@ import (
 // server that the CLI can connect to and interact with.
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"mimirtool": providerserver.NewProtocol6WithError(New("test")()),
+}
+
+// Each test gets its own tenant, so tests share no namespace or Alertmanager
+// config and do not depend on the order they run in.
+func testAccTenant() string {
+	return acctest.RandomWithPrefix("tf-acc")
+}
+
+func testAccConfig(tenant, config string) string {
+	return fmt.Sprintf(`
+provider "mimirtool" {
+  address   = "http://localhost:8080"
+  tenant_id = %q
+}
+`, tenant) + config
 }
 
 func TestConfigureRejectsUnknownValues(t *testing.T) {

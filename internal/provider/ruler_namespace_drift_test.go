@@ -18,13 +18,14 @@ const testAccRulerAPI = "http://localhost:8080/prometheus/config/v1/rules/"
 
 // Out-of-band changes are made straight through the ruler API, the way an
 // operator or another tool would, so the provider only discovers them on Read.
-func rulerRequest(t *testing.T, method, path, body string) {
+func testAccRulerRequest(t *testing.T, tenant, method, path, body string) {
 	t.Helper()
 	req, err := http.NewRequest(method, testAccRulerAPI+path, strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/yaml")
+	req.Header.Set("X-Scope-OrgID", tenant)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -35,10 +36,10 @@ func rulerRequest(t *testing.T, method, path, body string) {
 	}
 }
 
-func driftRepairStep(preConfig func()) resource.TestStep {
+func driftRepairStep(tenant string, preConfig func()) resource.TestStep {
 	return resource.TestStep{
 		PreConfig: preConfig,
-		Config:    testAccResourceNamespaceDrift,
+		Config:    testAccConfig(tenant, testAccResourceNamespaceDrift),
 		ConfigPlanChecks: resource.ConfigPlanChecks{
 			PreApply: []plancheck.PlanCheck{
 				plancheck.ExpectResourceAction("mimirtool_ruler_namespace.drift", plancheck.ResourceActionUpdate),
@@ -51,26 +52,27 @@ func driftRepairStep(preConfig func()) resource.TestStep {
 }
 
 func TestAccResourceNamespaceDrift(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceDrift,
+				Config: testAccConfig(tenant, testAccResourceNamespaceDrift),
 			},
-			driftRepairStep(func() {
-				rulerRequest(t, http.MethodDelete, "drift/mimir_api_2", "")
+			driftRepairStep(tenant, func() {
+				testAccRulerRequest(t, tenant, http.MethodDelete, "drift/mimir_api_2", "")
 			}),
-			driftRepairStep(func() {
-				rulerRequest(t, http.MethodDelete, "drift", "")
+			driftRepairStep(tenant, func() {
+				testAccRulerRequest(t, tenant, http.MethodDelete, "drift", "")
 			}),
-			driftRepairStep(func() {
-				rulerRequest(t, http.MethodPost, "drift", testAccResourceNamespaceDriftEditedGroup)
+			driftRepairStep(tenant, func() {
+				testAccRulerRequest(t, tenant, http.MethodPost, "drift", testAccResourceNamespaceDriftEditedGroup)
 			}),
 			{
 				PreConfig: func() {
-					rulerRequest(t, http.MethodPost, "drift", testAccResourceNamespaceDriftExtraGroup)
+					testAccRulerRequest(t, tenant, http.MethodPost, "drift", testAccResourceNamespaceDriftExtraGroup)
 				},
-				Config: testAccResourceNamespaceDrift,
+				Config: testAccConfig(tenant, testAccResourceNamespaceDrift),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
@@ -78,7 +80,7 @@ func TestAccResourceNamespaceDrift(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccResourceNamespaceDriftOneGroup,
+				Config: testAccConfig(tenant, testAccResourceNamespaceDriftOneGroup),
 				ConfigStateChecks: []statecheck.StateCheck{
 					SemanticYAMLStateCheck("mimirtool_ruler_namespace.drift", "remote_config_yaml", testAccResourceNamespaceYaml),
 				},
@@ -88,10 +90,6 @@ func TestAccResourceNamespaceDrift(t *testing.T) {
 }
 
 const testAccResourceNamespaceDrift = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "drift" {
 	namespace = "drift"
 	config_yaml = file("testdata/rules2.yaml")
@@ -99,10 +97,6 @@ resource "mimirtool_ruler_namespace" "drift" {
 `
 
 const testAccResourceNamespaceDriftOneGroup = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "drift" {
 	namespace = "drift"
 	config_yaml = file("testdata/rules.yaml")
@@ -135,17 +129,18 @@ rules:
 `
 
 func TestAccResourceNamespaceDestroyDeletedInMimir(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceDrift,
+				Config: testAccConfig(tenant, testAccResourceNamespaceDrift),
 			},
 			{
 				PreConfig: func() {
-					rulerRequest(t, http.MethodDelete, "drift", "")
+					testAccRulerRequest(t, tenant, http.MethodDelete, "drift", "")
 				},
-				Config:  testAccResourceNamespaceDrift,
+				Config:  testAccConfig(tenant, testAccResourceNamespaceDrift),
 				Destroy: true,
 			},
 		},
@@ -153,14 +148,15 @@ func TestAccResourceNamespaceDestroyDeletedInMimir(t *testing.T) {
 }
 
 func TestAccResourceNamespaceCreateRemovesUnconfiguredGroups(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
 				PreConfig: func() {
-					rulerRequest(t, http.MethodPost, "drift", testAccResourceNamespaceDriftExtraGroup)
+					testAccRulerRequest(t, tenant, http.MethodPost, "drift", testAccResourceNamespaceDriftExtraGroup)
 				},
-				Config: testAccResourceNamespaceDriftOneGroup,
+				Config: testAccConfig(tenant, testAccResourceNamespaceDriftOneGroup),
 				ConfigStateChecks: []statecheck.StateCheck{
 					SemanticYAMLStateCheck("mimirtool_ruler_namespace.drift", "remote_config_yaml", testAccResourceNamespaceYaml),
 				},
@@ -170,17 +166,18 @@ func TestAccResourceNamespaceCreateRemovesUnconfiguredGroups(t *testing.T) {
 }
 
 func TestAccResourceNamespaceDriftAllFields(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceAllFields,
+				Config: testAccConfig(tenant, testAccResourceNamespaceAllFields),
 			},
 			{
 				PreConfig: func() {
-					rulerRequest(t, http.MethodDelete, "all_fields/all_fields_records", "")
+					testAccRulerRequest(t, tenant, http.MethodDelete, "all_fields/all_fields_records", "")
 				},
-				Config: testAccResourceNamespaceAllFields,
+				Config: testAccConfig(tenant, testAccResourceNamespaceAllFields),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction("mimirtool_ruler_namespace.all_fields", plancheck.ResourceActionUpdate),
@@ -192,10 +189,6 @@ func TestAccResourceNamespaceDriftAllFields(t *testing.T) {
 }
 
 const testAccResourceNamespaceAllFields = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "all_fields" {
 	namespace = "all_fields"
 	config_yaml = file("testdata/rules-all-fields.yaml")
@@ -208,7 +201,7 @@ resource "mimirtool_ruler_namespace" "all_fields" {
 func TestAccResourceNamespaceUpgradeFromRelease(t *testing.T) {
 	for _, fixture := range []string{"rules2.yaml", "rules-all-fields.yaml"} {
 		t.Run(fixture, func(t *testing.T) {
-			config := fmt.Sprintf(testAccResourceNamespaceUpgrade, fixture)
+			config := testAccConfig(testAccTenant(), fmt.Sprintf(testAccResourceNamespaceUpgrade, fixture))
 			resource.Test(t, resource.TestCase{
 				Steps: []resource.TestStep{
 					{
@@ -233,10 +226,6 @@ func TestAccResourceNamespaceUpgradeFromRelease(t *testing.T) {
 }
 
 const testAccResourceNamespaceUpgrade = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "upgrade" {
 	namespace = "upgrade"
 	config_yaml = file("testdata/%s")

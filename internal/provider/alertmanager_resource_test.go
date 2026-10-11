@@ -11,11 +11,12 @@ import (
 )
 
 func TestAccResourceAlertmanager(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceAlertmanager,
+				Config: testAccConfig(tenant, testAccResourceAlertmanager),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(
 						"mimirtool_alertmanager.demo", "config_yaml", testAccResourceAlertmanagerYaml),
@@ -28,11 +29,12 @@ func TestAccResourceAlertmanager(t *testing.T) {
 }
 
 func TestAccResourceAlertmanagerNoTemplates(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceAlertmanagerNoTemplates,
+				Config: testAccConfig(tenant, testAccResourceAlertmanagerNoTemplates),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue("mimirtool_alertmanager.demo", tfjsonpath.New("templates_config_yaml"), knownvalue.Null()),
 				},
@@ -42,11 +44,12 @@ func TestAccResourceAlertmanagerNoTemplates(t *testing.T) {
 }
 
 func TestAccResourceAlertmanagerEmptyTemplates(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceAlertmanagerEmptyTemplates,
+				Config: testAccConfig(tenant, testAccResourceAlertmanagerEmptyTemplates),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue("mimirtool_alertmanager.demo", tfjsonpath.New("templates_config_yaml"), knownvalue.MapExact(map[string]knownvalue.Check{})),
 				},
@@ -56,11 +59,12 @@ func TestAccResourceAlertmanagerEmptyTemplates(t *testing.T) {
 }
 
 func TestAccResourceAlertmanagerParseError(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccResourceAlertmanagerParseError,
+				Config:      testAccConfig(tenant, testAccResourceAlertmanagerParseError),
 				ExpectError: regexp.MustCompile(`(?i)invalid yaml syntax|yaml`),
 			},
 		},
@@ -68,11 +72,12 @@ func TestAccResourceAlertmanagerParseError(t *testing.T) {
 }
 
 func TestAccResourceAlertmanagerImport(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceAlertmanager,
+				Config: testAccConfig(tenant, testAccResourceAlertmanager),
 			},
 			{
 				ResourceName:      "mimirtool_alertmanager.demo",
@@ -84,10 +89,6 @@ func TestAccResourceAlertmanagerImport(t *testing.T) {
 }
 
 const testAccResourceAlertmanager = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_alertmanager" "demo" {
 	config_yaml = file("testdata/example_alertmanager_config.yaml")
 	templates_config_yaml = {
@@ -97,20 +98,12 @@ resource "mimirtool_alertmanager" "demo" {
 `
 
 const testAccResourceAlertmanagerNoTemplates = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_alertmanager" "demo" {
 	config_yaml = file("testdata/example_alertmanager_config.yaml")
 }
 `
 
 const testAccResourceAlertmanagerEmptyTemplates = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_alertmanager" "demo" {
 	config_yaml = file("testdata/example_alertmanager_config.yaml")
 	templates_config_yaml = {}
@@ -136,10 +129,6 @@ const testAccResourceAlertmanagerTemplate = `{{ define "__alertmanager" }}AlertM
 `
 
 const testAccResourceAlertmanagerParseError = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_alertmanager" "demo" {
   config_yaml = <<YAML
 foo: bar: baz

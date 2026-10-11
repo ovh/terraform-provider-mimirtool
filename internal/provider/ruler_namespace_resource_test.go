@@ -59,11 +59,12 @@ func SemanticYAMLStateCheck(resourceName, attr, expected string) statecheck.Stat
 }
 
 func TestAccResourceNamespace(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespace,
+				Config: testAccConfig(tenant, testAccResourceNamespace),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("mimirtool_ruler_namespace.demo", "namespace", "demo"),
 				),
@@ -72,7 +73,7 @@ func TestAccResourceNamespace(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccResourceNamespaceAfterUpdate,
+				Config: testAccConfig(tenant, testAccResourceNamespaceAfterUpdate),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.demo",
@@ -95,11 +96,12 @@ func TestAccResourceNamespace(t *testing.T) {
 }
 
 func TestAccResourceNamespaceRename(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceRename,
+				Config: testAccConfig(tenant, testAccResourceNamespaceRename),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.alerts",
@@ -109,7 +111,7 @@ func TestAccResourceNamespaceRename(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccResourceNamespaceRenameAfterUpdate,
+				Config: testAccConfig(tenant, testAccResourceNamespaceRenameAfterUpdate),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.alerts",
@@ -123,11 +125,12 @@ func TestAccResourceNamespaceRename(t *testing.T) {
 }
 
 func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceWhitespaceDiff,
+				Config: testAccConfig(tenant, testAccResourceNamespaceWhitespaceDiff),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.demo",
@@ -142,11 +145,12 @@ func TestAccResourceNamespaceDiffSuppress(t *testing.T) {
 }
 
 func TestAccResourceNamespaceQuoting(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceQuoting,
+				Config: testAccConfig(tenant, testAccResourceNamespaceQuoting),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.demo",
@@ -161,11 +165,12 @@ func TestAccResourceNamespaceQuoting(t *testing.T) {
 }
 
 func TestAccResourceNamespaceCheckRules(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccResourceNamespaceFailsCheck,
+				Config:      testAccConfig(tenant, testAccResourceNamespaceFailsCheck),
 				ExpectError: regexp.MustCompile("namespace contains 1 rules that don't match the requirements"),
 			},
 		},
@@ -173,11 +178,12 @@ func TestAccResourceNamespaceCheckRules(t *testing.T) {
 }
 
 func TestAccResourceNamespaceNoCheck(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceNoCheck,
+				Config: testAccConfig(tenant, testAccResourceNamespaceNoCheck),
 				ConfigStateChecks: []statecheck.StateCheck{
 					statecheck.ExpectKnownValue(
 						"mimirtool_ruler_namespace.demo",
@@ -197,11 +203,12 @@ func TestAccResourceNamespaceNoCheck(t *testing.T) {
 }
 
 func TestAccResourceNamespaceParseRules(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccResourceNamespaceParseError,
+				Config:      testAccConfig(tenant, testAccResourceNamespaceParseError),
 				ExpectError: regexp.MustCompile("field expression not found"),
 			},
 		},
@@ -209,11 +216,12 @@ func TestAccResourceNamespaceParseRules(t *testing.T) {
 }
 
 func TestAccResourceNamespaceRemoteConfigReadOnly(t *testing.T) {
+	tenant := testAccTenant()
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config:      testAccResourceNamespaceRemoteConfigSet,
+				Config:      testAccConfig(tenant, testAccResourceNamespaceRemoteConfigSet),
 				ExpectError: regexp.MustCompile("Invalid Configuration for Read-Only Attribute"),
 			},
 		},
@@ -221,10 +229,6 @@ func TestAccResourceNamespaceRemoteConfigReadOnly(t *testing.T) {
 }
 
 const testAccResourceNamespaceRemoteConfigSet = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules.yaml")
@@ -233,10 +237,6 @@ resource "mimirtool_ruler_namespace" "demo" {
 `
 
 const testAccResourceNamespaceRename = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "alerts" {
 	namespace = "alerts_infra"
 	config_yaml = file("testdata/rules.yaml")
@@ -244,10 +244,6 @@ resource "mimirtool_ruler_namespace" "alerts" {
 `
 
 const testAccResourceNamespaceRenameAfterUpdate = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "alerts" {
 	namespace = "infra"
 	config_yaml = file("testdata/rules.yaml")
@@ -255,10 +251,6 @@ resource "mimirtool_ruler_namespace" "alerts" {
 `
 
 const testAccResourceNamespace = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules.yaml")
@@ -283,10 +275,6 @@ const testAccResourceNamespaceYamlWhitespace = `groups:
 `
 
 const testAccResourceNamespaceAfterUpdate = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules2.yaml")
@@ -306,20 +294,13 @@ const testAccResourceNamespaceYamlAfterUpdate = `groups:
           expr: histogram_quantile(0.99, sum by (le, cluster, job, route) (rate(cortex_request_duration_seconds_bucket[1m])))
 `
 
-const testAccResourceNamespaceWhitespaceDiff = `provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
+const testAccResourceNamespaceWhitespaceDiff = `
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules2_spacing.yaml")
   }
 `
 const testAccResourceNamespaceFailsCheck = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-fails-check.yaml")
@@ -327,10 +308,6 @@ resource "mimirtool_ruler_namespace" "demo" {
 `
 
 const testAccResourceNamespaceNoCheck = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-fails-check.yaml")
@@ -345,20 +322,12 @@ const testAccResourceNamespaceNoCheckExpected = `groups:
           expr: histogram_quantile(0.99, sum by (le, cluster, job) (rate(cortex_request_duration_seconds_bucket[1m])))
 `
 const testAccResourceNamespaceParseError = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-parse-error.yaml")
   }
 `
 const testAccResourceNamespaceQuoting = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "demo" {
 	namespace = "demo"
 	config_yaml = file("testdata/rules-quoting.yaml")
