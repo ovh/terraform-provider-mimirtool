@@ -6,10 +6,6 @@ import (
 	rwrulefmt "github.com/grafana/mimir/pkg/mimirtool/rules/rwrulefmt"
 )
 
-type myClient struct {
-	cli mimirClientInterface
-}
-
 type mimirClientInterface interface {
 	// Ruler
 	DeleteRuleGroup(ctx context.Context, namespace string, groupName string) error

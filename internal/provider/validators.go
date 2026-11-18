@@ -63,3 +63,25 @@ func (v yamlSyntaxValidator) ValidateString(_ context.Context, req validator.Str
 		)
 	}
 }
+
+// notEmptyValidator rejects "": an empty namespace makes the ruler API list or
+// write every namespace of the tenant instead of one.
+type notEmptyValidator struct{}
+
+func (v notEmptyValidator) Description(_ context.Context) string {
+	return "Ensures the string is not empty"
+}
+
+func (v notEmptyValidator) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v notEmptyValidator) ValidateString(_ context.Context, req validator.StringRequest, resp *validator.StringResponse) {
+	if !req.ConfigValue.IsUnknown() && !req.ConfigValue.IsNull() && req.ConfigValue.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			req.Path,
+			"Invalid empty value",
+			fmt.Sprintf("Attribute %s must not be empty.", req.Path),
+		)
+	}
+}

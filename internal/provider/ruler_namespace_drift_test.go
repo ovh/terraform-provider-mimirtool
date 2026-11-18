@@ -4,41 +4,69 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-const testAccRulerAPI = "http://localhost:8080/prometheus/config/v1/rules/"
+var testAccRulerAPI = testAccAddress + "/prometheus/config/v1/rules/"
 
-// Out-of-band changes are made straight through the ruler API, the way an
-// operator or another tool would, so the provider only discovers them on Read.
-func rulerRequest(t *testing.T, method, path, body string) {
+func testAccRulerRequest(t *testing.T, tenant, method, path, body string) {
 	t.Helper()
-	req, err := http.NewRequest(method, testAccRulerAPI+path, strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
+	testAccRequest(t, tenant, method, testAccRulerAPI+path, body)
+}
+
+func testAccRulerNamespaceBody(t *testing.T, tenant, namespace string) string {
+	t.Helper()
+	status, body := testAccGet(t, tenant, testAccRulerAPI+url.PathEscape(namespace))
+	// Any other status means a wrong URL or a Mimir error, never "namespace absent".
+	if status != http.StatusOK {
+		t.Fatalf("GET namespace %q: unexpected status %d: %s", namespace, status, body)
 	}
-	req.Header.Set("Content-Type", "application/yaml")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode >= 300 {
-		t.Fatalf("%s %s: unexpected status %d", method, path, res.StatusCode)
+	return body
+}
+
+func testAccCheckRulerNamespaceDestroy(t *testing.T, tenant string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		for _, rs := range s.RootModule().Resources {
+			if rs.Type != "mimirtool_ruler_namespace" {
+				continue
+			}
+			namespace := rs.Primary.Attributes["namespace"]
+			if strings.Contains(testAccRulerNamespaceBody(t, tenant, namespace), "name:") {
+				return fmt.Errorf("ruler namespace %s still exists in Mimir", namespace)
+			}
+		}
+		return nil
 	}
 }
 
-func driftRepairStep(preConfig func()) resource.TestStep {
+// rulerNamespaceInMimir reads Mimir, not the state, so it sees what other tenants see.
+type rulerNamespaceInMimir struct {
+	t         *testing.T
+	tenant    string
+	namespace string
+	want      bool
+}
+
+func (c rulerNamespaceInMimir) CheckState(_ context.Context, _ statecheck.CheckStateRequest, resp *statecheck.CheckStateResponse) {
+	if got := strings.Contains(testAccRulerNamespaceBody(c.t, c.tenant, c.namespace), "name:"); got != c.want {
+		resp.Error = fmt.Errorf("ruler namespace %s of tenant %s: in Mimir = %t, want %t", c.namespace, c.tenant, got, c.want)
+	}
+}
+
+func driftRepairStep(tenant string, preConfig func()) resource.TestStep {
 	return resource.TestStep{
 		PreConfig: preConfig,
-		Config:    testAccResourceNamespaceDrift,
+		Config:    testAccConfig(tenant, testAccResourceNamespaceDrift),
 		ConfigPlanChecks: resource.ConfigPlanChecks{
 			PreApply: []plancheck.PlanCheck{
 				plancheck.ExpectResourceAction("mimirtool_ruler_namespace.drift", plancheck.ResourceActionUpdate),
@@ -51,26 +79,29 @@ func driftRepairStep(preConfig func()) resource.TestStep {
 }
 
 func TestAccResourceNamespaceDrift(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceDrift,
+				Config: testAccConfig(tenant, testAccResourceNamespaceDrift),
 			},
-			driftRepairStep(func() {
-				rulerRequest(t, http.MethodDelete, "drift/mimir_api_2", "")
+			driftRepairStep(tenant, func() {
+				testAccRulerRequest(t, tenant, http.MethodDelete, "drift/mimir_api_2", "")
 			}),
-			driftRepairStep(func() {
-				rulerRequest(t, http.MethodDelete, "drift", "")
+			driftRepairStep(tenant, func() {
+				testAccRulerRequest(t, tenant, http.MethodDelete, "drift", "")
 			}),
-			driftRepairStep(func() {
-				rulerRequest(t, http.MethodPost, "drift", testAccResourceNamespaceDriftEditedGroup)
+			driftRepairStep(tenant, func() {
+				testAccRulerRequest(t, tenant, http.MethodPost, "drift", testAccResourceNamespaceDriftEditedGroup)
 			}),
 			{
 				PreConfig: func() {
-					rulerRequest(t, http.MethodPost, "drift", testAccResourceNamespaceDriftExtraGroup)
+					testAccRulerRequest(t, tenant, http.MethodPost, "drift", testAccResourceNamespaceDriftExtraGroup)
 				},
-				Config: testAccResourceNamespaceDrift,
+				Config: testAccConfig(tenant, testAccResourceNamespaceDrift),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectEmptyPlan(),
@@ -78,7 +109,7 @@ func TestAccResourceNamespaceDrift(t *testing.T) {
 				},
 			},
 			{
-				Config: testAccResourceNamespaceDriftOneGroup,
+				Config: testAccConfig(tenant, testAccResourceNamespaceDriftOneGroup),
 				ConfigStateChecks: []statecheck.StateCheck{
 					SemanticYAMLStateCheck("mimirtool_ruler_namespace.drift", "remote_config_yaml", testAccResourceNamespaceYaml),
 				},
@@ -88,10 +119,6 @@ func TestAccResourceNamespaceDrift(t *testing.T) {
 }
 
 const testAccResourceNamespaceDrift = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "drift" {
 	namespace = "drift"
 	config_yaml = file("testdata/rules2.yaml")
@@ -99,10 +126,6 @@ resource "mimirtool_ruler_namespace" "drift" {
 `
 
 const testAccResourceNamespaceDriftOneGroup = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "drift" {
 	namespace = "drift"
 	config_yaml = file("testdata/rules.yaml")
@@ -134,18 +157,62 @@ rules:
     expr: sum by (job) (up)
 `
 
-func TestAccResourceNamespaceDriftAllFields(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+func TestAccResourceNamespaceDestroyDeletedInMimir(t *testing.T) {
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccResourceNamespaceAllFields,
+				Config: testAccConfig(tenant, testAccResourceNamespaceDrift),
 			},
 			{
 				PreConfig: func() {
-					rulerRequest(t, http.MethodDelete, "all_fields/all_fields_records", "")
+					testAccRulerRequest(t, tenant, http.MethodDelete, "drift", "")
 				},
-				Config: testAccResourceNamespaceAllFields,
+				Config:  testAccConfig(tenant, testAccResourceNamespaceDrift),
+				Destroy: true,
+			},
+		},
+	})
+}
+
+func TestAccResourceNamespaceCreateRemovesUnconfiguredGroups(t *testing.T) {
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
+		Steps: []resource.TestStep{
+			{
+				PreConfig: func() {
+					testAccRulerRequest(t, tenant, http.MethodPost, "drift", testAccResourceNamespaceDriftExtraGroup)
+				},
+				Config: testAccConfig(tenant, testAccResourceNamespaceDriftOneGroup),
+				ConfigStateChecks: []statecheck.StateCheck{
+					SemanticYAMLStateCheck("mimirtool_ruler_namespace.drift", "remote_config_yaml", testAccResourceNamespaceYaml),
+				},
+			},
+		},
+	})
+}
+
+func TestAccResourceNamespaceDriftAllFields(t *testing.T) {
+	tenant := testAccTenant()
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckRulerNamespaceDestroy(t, tenant),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccConfig(tenant, testAccResourceNamespaceAllFields),
+			},
+			{
+				PreConfig: func() {
+					testAccRulerRequest(t, tenant, http.MethodDelete, "all_fields/all_fields_records", "")
+				},
+				Config: testAccConfig(tenant, testAccResourceNamespaceAllFields),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction("mimirtool_ruler_namespace.all_fields", plancheck.ResourceActionUpdate),
@@ -157,10 +224,6 @@ func TestAccResourceNamespaceDriftAllFields(t *testing.T) {
 }
 
 const testAccResourceNamespaceAllFields = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "all_fields" {
 	namespace = "all_fields"
 	config_yaml = file("testdata/rules-all-fields.yaml")
@@ -170,38 +233,45 @@ resource "mimirtool_ruler_namespace" "all_fields" {
 
 // A state written by the released provider must plan nothing once upgraded,
 // including for fields Mimir drops on write.
-func TestAccResourceNamespaceUpgradeFromRelease(t *testing.T) {
-	for _, fixture := range []string{"rules2.yaml", "rules-all-fields.yaml"} {
-		t.Run(fixture, func(t *testing.T) {
-			config := fmt.Sprintf(testAccResourceNamespaceUpgrade, fixture)
-			resource.Test(t, resource.TestCase{
-				Steps: []resource.TestStep{
-					{
-						ExternalProviders: map[string]resource.ExternalProvider{
-							"mimirtool": {Source: "ovh/mimirtool", VersionConstraint: "1.0.0"},
-						},
-						Config: config,
-					},
-					{
-						ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-						Config:                   config,
-						ConfigPlanChecks: resource.ConfigPlanChecks{
-							PreApply: []plancheck.PlanCheck{
-								plancheck.ExpectEmptyPlan(),
-							},
-						},
-					},
+// Users upgrade from any release, not only the last one.
+var testAccReleases = []string{"1.0.0", "1.1.0"}
+
+func upgradeFromReleaseSteps(release, config string) []resource.TestStep {
+	return []resource.TestStep{
+		{
+			ExternalProviders: map[string]resource.ExternalProvider{
+				"mimirtool": {Source: "ovh/mimirtool", VersionConstraint: release},
+			},
+			Config: config,
+		},
+		{
+			ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+			Config:                   config,
+			ConfigPlanChecks: resource.ConfigPlanChecks{
+				PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectEmptyPlan(),
 				},
+			},
+		},
+	}
+}
+
+func TestAccResourceNamespaceUpgradeFromRelease(t *testing.T) {
+	for _, release := range testAccReleases {
+		for _, fixture := range []string{"rules2.yaml", "rules-all-fields.yaml"} {
+			t.Run(release+"/"+fixture, func(t *testing.T) {
+				tenant := testAccTenant()
+				resource.ParallelTest(t, resource.TestCase{
+					PreCheck:     func() { testAccPreCheck(t) },
+					CheckDestroy: testAccCheckRulerNamespaceDestroy(t, tenant),
+					Steps:        upgradeFromReleaseSteps(release, testAccConfig(tenant, fmt.Sprintf(testAccResourceNamespaceUpgrade, fixture))),
+				})
 			})
-		})
+		}
 	}
 }
 
 const testAccResourceNamespaceUpgrade = `
-provider "mimirtool" {
-  address = "http://localhost:8080"
-}
-
 resource "mimirtool_ruler_namespace" "upgrade" {
 	namespace = "upgrade"
 	config_yaml = file("testdata/%s")
